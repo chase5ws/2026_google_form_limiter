@@ -49,12 +49,12 @@ test/
 3. 到 <https://script.google.com/home/usersettings> 把 **Google Apps Script API** 打開（clasp 需要）。
 
 ### 2. 在自己電腦登入 clasp（只做一次）
+需要 Node.js 22 以上。用 `npx` 就不用全域安裝，也不會遇到 `EACCES` 權限錯誤：
 ```bash
-npm install -g @google/clasp@2.4.2
-clasp login            # 會開瀏覽器，用「擁有表單的那個 Google 帳號」登入
-cat ~/.clasprc.json    # 整段內容等一下要貼進 GitHub Secret
+npx -y @google/clasp@3 login        # 會開瀏覽器，用「擁有表單的那個 Google 帳號」登入
+pbcopy < ~/.clasprc.json            # 複製到剪貼簿，直接貼進 GitHub Secret
 ```
-> 請固定用 2.4.2 版。clasp 3.x 的憑證格式不同，跟 workflow 不相容。
+> `~/.clasprc.json` 等同你的 Google 授權，**不要貼到聊天、Issue 或 commit 裡**。外洩時到 <https://myaccount.google.com/permissions> 移除 clasp 的存取權，再重新 `login`。
 
 ### 3. 設定 GitHub Secrets
 repo → Settings → Secrets and variables → Actions → New repository secret：
@@ -104,7 +104,7 @@ repo → Settings → Secrets and variables → Actions → New repository secre
 `.github/workflows/deploy.yml`：push 到 `main`，而且有改到 `src/` 或測試時，會依序：
 1. 跑 `node test/backend.test.js`，測試沒過就不部署。
 2. `clasp push --force` 把 `src/` 推上 Apps Script。
-3. 有設 `DEPLOYMENT_ID` 的話，執行 `clasp deploy --deploymentId …` 更新網頁版本。
+3. 有設 `DEPLOYMENT_ID` 的話，執行 `clasp create-deployment --deploymentId …` 更新網頁版本（網址不變）。
 
 也可以在 Actions 頁面按 **Run workflow** 手動部署。
 

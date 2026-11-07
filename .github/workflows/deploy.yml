@@ -1,6 +1,6 @@
 # push 到 main → 跑後端測試 → 用 clasp 推上 Apps Script → 更新網頁版部署（網址不變）
 # 需要的 GitHub Secrets（設定方式見 README「自動部署」）：
-#   CLASPRC_JSON   你電腦上 ~/.clasprc.json 的完整內容
+#   CLASPRC_JSON   你電腦上 ~/.clasprc.json 的完整內容（clasp 3 格式）
 #   SCRIPT_ID      Apps Script 專案 ID
 #   DEPLOYMENT_ID  網頁應用程式的部署 ID（選填；沒填就只推程式碼，不更新網址上的版本）
 name: Deploy to Apps Script
@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 後端測試
         run: node test/backend.test.js
@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: 安裝 clasp
-        run: npm install -g @google/clasp@2.4.2
+        run: npm install -g @google/clasp@3
 
       - name: 寫入 clasp 設定
         run: |
@@ -56,7 +56,7 @@ jobs:
 
       - name: 更新網頁應用程式部署
         if: env.DEPLOYMENT_ID != ''
-        run: clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7} $(date -u +%F)"
+        run: clasp create-deployment --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7} $(date -u +%F)"
 
       - name: 清除憑證
         if: always()
