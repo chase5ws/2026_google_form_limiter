@@ -656,7 +656,7 @@
   } else {
     show('vLogin');
     api('appStatus').then(function (s) {
-      if (!s.initialized) showErr('loginErr', '還沒有建立最高管理員。請照 README「第一次設定」在 Apps Script 編輯器執行 setupOwner。');
+      if (!s.initialized) showErr('loginErr', '第一次使用：請用預設的最高管理員帳號登入，登入後會要求你設定新密碼。');
     }).catch(function () {});
   }
 })();

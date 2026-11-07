@@ -1,0 +1,15 @@
+{
+  "name": "google-form-limiter-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "多組織 Google 表單限額管理平台（Railway）",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "MIT"
+}

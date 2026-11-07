@@ -181,4 +181,21 @@ t('setupOwner 可用來救回忘記的密碼', () => {
   assert.ok(C.login('chase5ws', 'Rescue2026x').me.mustChange);
 });
 
+t('預設帳號：沒有最高管理員時 chase5ws/chase5ws 可登入，改密碼後失效', () => {
+  const g2 = create(); const C2 = g2.ctx;
+  assert.strictEqual(C2.appStatus().initialized, false);
+  throws(() => C2.login('chase5ws', 'wrong'), /帳號或密碼錯誤/);
+  const r = C2.login('chase5ws', 'chase5ws');
+  assert.ok(r.me.mustChange && r.me.role === 'owner');
+  assert.ok(g2.triggers.some(x => x.fn === 'checkAllForms'));
+  C2.changePassword(r.token, 'chase5ws', 'MyOwnPw2026');
+  throws(() => C2.login('chase5ws', 'chase5ws'), /帳號或密碼錯誤/);
+  assert.ok(C2.login('chase5ws', 'MyOwnPw2026').token);
+  assert.strictEqual(Object.keys(g2.props).filter(k => k.startsWith('GFL_ADMIN_')).length, 1);
+});
+
+t('已有最高管理員時，預設密碼不會被重新啟用', () => {
+  throws(() => C.login('chase5ws', 'chase5ws'), /帳號或密碼錯誤/);
+});
+
 console.log(`\n${pass} 項全部通過`);

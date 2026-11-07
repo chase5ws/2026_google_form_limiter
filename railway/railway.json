@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "watchPatterns": ["/railway/**"]
+  },
+  "deploy": {
+    "startCommand": "node --disable-warning=ExperimentalWarning server.js",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 60,
+    "restartPolicyType": "ON_FAILURE",
+    "numReplicas": 1,
+    "drainingSeconds": 30
+  }
+}

@@ -36,6 +36,12 @@ const P = {
   INIT_PW: 'INIT_OWNER_PASSWORD'
 };
 
+/**
+ * 預設最高管理員：系統裡還沒有任何最高管理員時，第一次登入會自動建立。
+ * 第一次登入後會被強制改密碼，改完預設密碼就失效。
+ */
+const DEFAULT_OWNER = { username: 'chase5ws', password: 'chase5ws' };
+
 const DEFAULT_MSG = {
   msgNotYet: '表單尚未開放填寫，請於開放時間再回來。',
   msgFull: '名額已滿，感謝您的支持！',
@@ -104,6 +110,7 @@ function appStatus() {
 }
 
 function login(username, password) {
+  ensureDefaultOwner_();
   username = normUser_(username);
   const cache = CacheService.getScriptCache();
   const failKey = 'fail_' + username;
@@ -577,6 +584,31 @@ function checkPassword_(pw, username) {
   const lower = pw.toLowerCase();
   if (username && lower.indexOf(username) >= 0) throw new Error('密碼不能包含帳號名稱。');
   if (!/[a-zA-Z]/.test(pw) || !/[0-9]/.test(pw)) throw new Error('密碼要同時包含英文字母和數字。');
+}
+
+/** 沒有任何最高管理員時，建立預設帳號（需要第一次登入就改密碼） */
+function ensureDefaultOwner_() {
+  if (listAdmins_().some(a => a.role === 'owner')) return;
+  const created = withLock_(() => {
+    if (listAdmins_().some(a => a.role === 'owner')) return false;
+    const u = getAdmin_(DEFAULT_OWNER.username) || {
+      username: DEFAULT_OWNER.username,
+      displayName: DEFAULT_OWNER.username,
+      createdAt: Date.now(),
+      createdBy: '系統預設',
+      sessVer: 0
+    };
+    u.role = 'owner';
+    u.disabled = false;
+    setPassword_(u, DEFAULT_OWNER.password);
+    u.mustChange = true;
+    saveAdmin_(u);
+    return true;
+  });
+  if (created) {
+    safe_(() => ensureTimer_());
+    log_('系統', `建立預設最高管理員 ${DEFAULT_OWNER.username}`);
+  }
 }
 
 function ensureAnotherOwner_(exceptUsername) {

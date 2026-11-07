@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>表單限額管理平台</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+    --brand: #5b4bdb; --brand-weak: #eeebff; --ok: #12805c; --ok-weak: #e3f6ee;
+    --warn: #b45309; --warn-weak: #fdf1e1; --bad: #c0362c; --bad-weak: #fdecea; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  code { background: #eef0f3; border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+
+  .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 14px; cursor: pointer; white-space: nowrap; text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 4px; }
+  .btn:hover { border-color: #c8ccd4; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.danger { color: var(--bad); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  a.btn.ghost { color: var(--brand); }
+  .btn.sm { padding: 4px 10px; font-size: 13px; }
+  label.field { display: block; margin-bottom: 14px; }
+  label.field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=number], input[type=email], input[type=datetime-local], select, textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-weak); border-color: var(--brand); }
+  textarea { resize: vertical; min-height: 60px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row > .grow { flex: 1 1 220px; width: auto; min-width: 0; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .auth { width: 100%; max-width: 380px; background: var(--card); border-radius: 16px; padding: 28px; box-shadow: 0 10px 30px rgba(20,24,40,.08); }
+  .auth h1 { font-size: 20px; margin: 0 0 4px; }
+  .auth p { margin: 0 0 20px; }
+  .auth .btn.primary { width: 100%; justify-content: center; padding: 10px; }
+  .err { color: var(--bad); background: var(--bad-weak); border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; font-size: 14px; }
+
+  header { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .bar { max-width: 1080px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .logo { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .logo i { width: 26px; height: 26px; border-radius: 7px; background: var(--brand); display: inline-grid; place-items: center; color: #fff; font-style: normal; font-size: 14px; }
+  .orgpick { display: flex; align-items: center; gap: 6px; }
+  .orgpick select { width: auto; padding: 5px 8px; max-width: 220px; }
+  .me { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .tabs { max-width: 1080px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
+  .tab { border: 0; background: none; padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; color: var(--muted); white-space: nowrap; }
+  .tab.on { color: var(--brand); border-color: var(--brand); font-weight: 600; }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+  .section-head h2 { font-size: 17px; margin: 0; }
+  .section-head .right { margin-left: auto; display: flex; gap: 6px; }
+  .steps { margin: 0 0 12px; padding-left: 20px; font-size: 14px; }
+  .steps li { margin-bottom: 4px; }
+
+  .forms { display: grid; gap: 12px; margin-top: 14px; }
+  .forms > * { min-width: 0; }
+  .linkbox span { min-width: 0; }
+  .fcard { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .fcard h3 { margin: 0; font-size: 16px; word-break: break-word; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.open { color: var(--ok); background: var(--ok-weak); }
+  .pill.closed { color: var(--bad); background: var(--bad-weak); }
+  .pill.wait { color: var(--warn); background: var(--warn-weak); }
+  .pill.unknown { color: var(--muted); background: #eef0f3; }
+  .meter { height: 8px; background: #eef0f3; border-radius: 99px; overflow: hidden; margin: 12px 0 6px; }
+  .meter > b { display: block; height: 100%; background: var(--brand); border-radius: 99px; }
+  .meter.full > b { background: var(--bad); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 16px; margin: 10px 0 12px; font-size: 14px; }
+  .facts div span { color: var(--muted); margin-right: 6px; }
+  .linkbox { display: flex; gap: 6px; align-items: center; background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 12px; font-size: 13px; }
+  .linkbox span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .note { font-size: 13px; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+  .note.bad { background: var(--bad-weak); color: var(--bad); }
+  .note.warn { background: var(--warn-weak); color: var(--warn); }
+  .note.ok { background: var(--ok-weak); color: var(--ok); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+  .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; }
+  td.act { white-space: nowrap; text-align: right; }
+  .tag { font-size: 12px; border-radius: 6px; padding: 1px 7px; background: #eef0f3; color: var(--muted); margin-left: 4px; white-space: nowrap; }
+  .tag.brand { background: var(--brand-weak); color: var(--brand); }
+  .tag.off { background: var(--bad-weak); color: var(--bad); }
+
+  .log { display: grid; grid-template-columns: 140px 110px 1fr; gap: 0 12px; font-size: 14px; }
+  .log div { padding: 6px 0; border-bottom: 1px solid var(--line); word-break: break-word; }
+
+  .ff { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .ff:last-child { border-bottom: 0; }
+  .ff .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chk { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 600; }
+  .chk input { width: 18px; height: 18px; }
+  fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 2px; margin: 4px 0 14px; }
+  legend { font-size: 13px; color: var(--muted); padding: 0 6px; }
+  .gcard { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .gdot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+  .gdot.on { background: var(--ok); }
+
+  dialog { border: 0; border-radius: 16px; padding: 0; width: min(540px, calc(100vw - 32px)); box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+  dialog::backdrop { background: rgba(20,24,40,.45); }
+  .dlg-head { padding: 16px 20px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .dlg-body { padding: 18px 20px; max-height: 70vh; overflow: auto; }
+  .dlg-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1d2330; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; max-width: calc(100vw - 32px); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.bad { background: var(--bad); }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s .7s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .log { grid-template-columns: 1fr; }
+    .log div:nth-child(3n+1), .log div:nth-child(3n+2) { border: 0; padding-bottom: 0; color: var(--muted); font-size: 12px; }
+    .me .who { display: none; }
+    .orgpick { order: 3; width: 100%; }
+    .orgpick select { flex: 1; max-width: none; }
+  }
+</style>
+</head>
+<body>
+
+<section id="vLogin" class="center hidden">
+  <form class="auth" id="loginForm">
+    <h1>表單限額管理平台</h1>
+    <p class="muted small">請用你的帳號登入</p>
+    <div id="loginErr" class="err hidden"></div>
+    <label class="field"><span>帳號</span><input type="text" id="lgUser" autocomplete="username" autocapitalize="none" required></label>
+    <label class="field"><span>密碼</span><input type="password" id="lgPw" autocomplete="current-password" required></label>
+    <button class="btn primary" id="lgBtn">登入</button>
+  </form>
+</section>
+
+<section id="vChange" class="center hidden">
+  <form class="auth" id="changeForm">
+    <h1>設定新密碼</h1>
+    <p class="muted small">第一次登入或密碼被重設後，要先設定自己的密碼。</p>
+    <div id="changeErr" class="err hidden"></div>
+    <label class="field"><span>目前的密碼</span><input type="password" id="cpOld" autocomplete="current-password" required></label>
+    <label class="field"><span>新密碼</span><input type="password" id="cpNew" autocomplete="new-password" required>
+      <div class="hint">至少 8 個字元，要有英文和數字，不能包含帳號名稱</div></label>
+    <label class="field"><span>再輸入一次新密碼</span><input type="password" id="cpNew2" autocomplete="new-password" required></label>
+    <div class="row"><button class="btn primary grow" id="cpBtn">儲存新密碼</button><button type="button" class="btn" id="cpCancel">取消</button></div>
+  </form>
+</section>
+
+<section id="vApp" class="hidden">
+  <header>
+    <div class="bar">
+      <div class="logo"><i>限</i><span id="brandName">表單限額管理平台</span></div>
+      <div class="orgpick hidden" id="orgPick"><span class="small muted">管理組織</span><select id="orgSelect"></select></div>
+      <div class="me">
+        <span class="who small muted" id="meName"></span>
+        <button class="btn sm ghost" id="btnChangePw">改密碼</button>
+        <button class="btn sm" id="btnLogout">登出</button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main>
+    <!-- 表單 -->
+    <div id="pForms" class="panel">
+      <div class="card" id="folderCard">
+        <div id="noGoogle" class="note warn hidden">平台還沒連接 Google 帳號，暫時不能加入表單。請聯絡平台管理員。</div>
+        <div id="folderSetup" class="hidden">
+          <div class="section-head"><h2>第一步：連結共用資料夾</h2></div>
+          <ol class="steps">
+            <li>在你的 Google 雲端硬碟建立一個資料夾，名稱必須是 <code class="fname">…</code>。</li>
+            <li>對資料夾按右鍵 →「共用」，把 <code class="pemail">…</code> 加為<b>編輯者</b>。</li>
+            <li>打開資料夾，複製網址列的連結，貼在下面。</li>
+          </ol>
+          <form id="folderForm" class="row">
+            <input type="text" class="grow" id="folderUrl" placeholder="https://drive.google.com/drive/folders/…" required>
+            <button class="btn primary" id="folderBtn">連結資料夾</button>
+          </form>
+          <div class="hint">表單、回覆和上傳的檔案都會留在你們自己的雲端硬碟，平台只負責開關表單。</div>
+          <div id="folderMemberNote" class="note warn hidden" style="margin-top:10px">只有組織管理員可以連結資料夾，請聯絡你們的組織管理員。</div>
+        </div>
+        <div id="folderLinked" class="hidden">
+          <div class="section-head">
+            <h2>共用資料夾裡的表單</h2>
+            <div class="right"><button class="btn sm" id="btnFolderRefresh">重新整理</button><button class="btn sm ghost" id="btnFolderChange">變更資料夾</button></div>
+          </div>
+          <div class="small muted" id="folderInfo" style="margin-bottom:8px"></div>
+          <div id="folderForms"></div>
+          <div class="hint" style="margin-top:8px">在這個資料夾裡建立新表單，或把現有表單移進來，再按「重新整理」。舊版表單無法控管時，請用 Google 表單的「⋮ → 建立副本」。</div>
+        </div>
+      </div>
+      <div class="section-head" style="margin-top:22px">
+        <h2>受管理的表單</h2><span class="muted small" id="formsCount"></span>
+        <div class="right"><button class="btn sm" id="btnCheckAll">重新檢查全部</button></div>
+      </div>
+      <div class="forms" id="formsList"></div>
+    </div>
+
+    <!-- 帳號 -->
+    <div id="pUsers" class="panel hidden">
+      <div class="section-head"><h2 id="usersTitle">帳號</h2><div class="right"><button class="btn sm primary" id="btnAddUser">新增帳號</button></div></div>
+      <div class="card tbl-wrap"><table><thead><tr><th>帳號</th><th>顯示名稱</th><th>Email</th><th>最後登入</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+      <p class="muted small" id="usersHint"></p>
+    </div>
+
+    <!-- 紀錄 -->
+    <div id="pLogs" class="panel hidden">
+      <div class="section-head"><h2 id="logsTitle">操作紀錄</h2><div class="right"><button class="btn sm" id="btnReloadLogs">重新整理</button></div></div>
+      <div class="card"><div class="log" id="logRows"></div></div>
+    </div>
+
+    <!-- 組織（平台） -->
+    <div id="pOrgs" class="panel hidden">
+      <div class="section-head"><h2>組織</h2><div class="right"><button class="btn sm primary" id="btnAddOrg">建立組織</button></div></div>
+      <div class="card tbl-wrap"><table><thead><tr><th>組織</th><th>表單</th><th>帳號</th><th>共用資料夾</th><th></th></tr></thead><tbody id="orgRows"></tbody></table></div>
+    </div>
+
+    <!-- 平台設定 -->
+    <div id="pSettings" class="panel hidden">
+      <div class="section-head"><h2>Google 帳號</h2></div>
+      <div class="card">
+        <div class="gcard">
+          <span class="gdot" id="gDot"></span>
+          <div style="flex:1;min-width:200px"><b id="gStatus">未連接</b><div class="small muted" id="gSub"></div></div>
+          <button class="btn primary" id="btnGConnect">連接 Google</button>
+          <button class="btn danger hidden" id="btnGDisconnect">中斷連接</button>
+        </div>
+        <div class="hint" style="margin-top:12px">
+          平台不會在你的雲端硬碟建立任何檔案。表單都留在各組織自己的共用資料夾裡，回覆和上傳的檔案也算組織的容量。
+          系統對雲端硬碟只有<b>讀取檔案清單</b>的權限，對表單有<b>開關「接受回覆」和讀取回覆</b>的權限。
+        </div>
+      </div>
+      <div class="section-head" style="margin-top:22px"><h2>組織共用資料夾名稱</h2></div>
+      <div class="card">
+        <form id="fnameForm" class="row"><input type="text" class="grow" id="fnameInput" maxlength="100" required><button class="btn" id="fnameBtn">儲存</button></form>
+        <div class="hint">組織要把這個名稱的資料夾共用給你，系統才會接受。改名只影響之後新連結的資料夾。</div>
+      </div>
+      <div class="section-head" style="margin-top:22px"><h2>寄信</h2></div>
+      <div class="card">
+        <div class="gcard"><span class="gdot" id="mDot"></span><div style="flex:1;min-width:200px"><b id="mStatus"></b><div class="small muted" id="mSub"></div></div></div>
+        <form id="mailTestForm" class="row" style="margin-top:12px"><input type="email" class="grow" id="mailTo" placeholder="收件 Email" required><button class="btn" id="mailTestBtn">寄測試信</button></form>
+        <div class="hint">Railway 的 Free、Trial、Hobby 方案會封鎖 SMTP，請改用 Resend（設定 <code>RESEND_API_KEY</code>）；Pro 方案可以用 SMTP。</div>
+      </div>
+      <div class="section-head" style="margin-top:22px"><h2>平台管理員</h2><div class="right"><button class="btn sm primary" id="btnAddSuper">新增平台管理員</button></div></div>
+      <div class="card tbl-wrap"><table><thead><tr><th>帳號</th><th>顯示名稱</th><th>Email</th><th>最後登入</th><th></th></tr></thead><tbody id="superRows"></tbody></table></div>
+      <div class="section-head" style="margin-top:22px"><h2>平台紀錄</h2></div>
+      <div class="card"><div class="log" id="platformLogs"></div></div>
+    </div>
+  </main>
+</section>
+
+<!-- 表單設定 -->
+<dialog id="dlgForm"><form id="formEdit">
+  <div class="dlg-head" id="feTitle">表單設定</div>
+  <div class="dlg-body">
+    <div id="feErr" class="err hidden"></div>
+    <label class="field"><span>名額上限（份）</span><input type="number" id="feMax" min="1" step="1" placeholder="留空代表不限名額"><div class="hint" id="feCountHint"></div></label>
+    <div class="grid2">
+      <label class="field"><span>開放時間</span><input type="datetime-local" id="feOpen"><div class="hint">留空代表立即開放</div></label>
+      <label class="field"><span>截止時間</span><input type="datetime-local" id="feClose"><div class="hint">留空代表不截止</div></label>
+    </div>
+    <fieldset>
+      <legend>名額已滿時寄信通知</legend>
+      <label class="chk"><input type="checkbox" id="feNotify"> 依送出順序排位，寄信給沒排進名額的人</label>
+      <div id="feNotifyBox">
+        <div id="feMailOff" class="note warn hidden">伺服器還沒設定寄信，勾選後不會寄出。請平台管理員設定 SMTP 或 Resend。</div>
+        <label class="field"><span>收件 Email 從哪裡來</span><select id="feSource"><option value="respondent">表單收集的 Email（設定 → 回覆 → 收集電子郵件地址）</option></select>
+          <div class="hint" id="feSourceHint"></div></label>
+        <details>
+          <summary>自訂信件內容</summary>
+          <div class="hint" style="margin-bottom:10px">可用：<code>{title}</code> 表單名稱、<code>{org}</code> 組織、<code>{rank}</code> 順位、<code>{limit}</code> 名額、<code>{waitlist}</code> 候補第幾位。留空用預設內容。</div>
+          <label class="field"><span>候補信主旨</span><input type="text" id="feWS"></label>
+          <label class="field"><span>候補信內容</span><textarea id="feWB" rows="5"></textarea></label>
+          <label class="field"><span>遞補成功信主旨</span><input type="text" id="fePS"></label>
+          <label class="field"><span>遞補成功信內容</span><textarea id="fePB" rows="4"></textarea></label>
+        </details>
+        <div class="hint">超出名額的人會收到「候補」信；之後有人被刪除、他排進名額內，會再收到「遞補成功」信。每人每種信只寄一次，失敗最多重試 3 次。</div>
+      </div>
+    </fieldset>
+    <div class="hint">系統每分鐘檢查一次，開關可能會晚 1 分鐘左右。</div>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn" data-close>取消</button><button class="btn primary" id="feSave">儲存並套用</button></div>
+</form></dialog>
+
+<!-- 通知紀錄 -->
+<dialog id="dlgNotices"><div>
+  <div class="dlg-head" id="ntTitle">寄信紀錄</div>
+  <div class="dlg-body"><div class="tbl-wrap"><table><thead><tr><th>時間</th><th>類型</th><th>順位</th><th>Email</th><th>狀態</th></tr></thead><tbody id="ntRows"></tbody></table></div></div>
+  <div class="dlg-foot"><button type="button" class="btn" data-close>關閉</button></div>
+</div></dialog>
+
+<!-- 新增帳號／重設密碼 -->
+<dialog id="dlgUser"><form id="userEdit">
+  <div class="dlg-head" id="ueTitle">新增帳號</div>
+  <div class="dlg-body">
+    <div id="ueErr" class="err hidden"></div>
+    <div id="ueNew">
+      <label class="field"><span>帳號</span><input type="text" id="ueUser" autocapitalize="none" autocomplete="off" placeholder="英文小寫、數字、. _ -，3–32 字"></label>
+      <div class="grid2">
+        <label class="field"><span>顯示名稱</span><input type="text" id="ueName" maxlength="40" placeholder="選填"></label>
+        <label class="field"><span>Email</span><input type="email" id="ueEmail" placeholder="選填，加表單時預設共用給它"></label>
+      </div>
+      <label class="field" id="ueRoleWrap"><span>權限</span>
+        <select id="ueRole"><option value="org_member">組織成員（管理表單）</option><option value="org_admin">組織管理員（也能管理帳號）</option></select></label>
+    </div>
+    <label class="field"><span id="uePwLabel">初始密碼</span>
+      <div class="row"><input type="text" class="grow" id="uePw" autocomplete="off"><button type="button" class="btn sm" id="ueGen">產生</button></div>
+      <div class="hint">對方第一次登入時要改成自己的密碼。帳密會自動複製，請私訊給對方。</div></label>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn" data-close>取消</button><button class="btn primary" id="ueSave">建立</button></div>
+</form></dialog>
+
+<!-- 建立組織 -->
+<dialog id="dlgOrg"><form id="orgEdit">
+  <div class="dlg-head">建立組織</div>
+  <div class="dlg-body">
+    <div id="oeErr" class="err hidden"></div>
+    <label class="field"><span>組織名稱</span><input type="text" id="oeName" maxlength="60" required placeholder="例如：新竹社區大學"></label>
+    <div class="small muted" style="margin:4px 0 10px">第一位組織管理員</div>
+    <div class="grid2">
+      <label class="field"><span>帳號</span><input type="text" id="oeUser" autocapitalize="none" autocomplete="off" required></label>
+      <label class="field"><span>Email</span><input type="email" id="oeEmail" placeholder="選填"></label>
+    </div>
+    <label class="field"><span>初始密碼</span>
+      <div class="row"><input type="text" class="grow" id="oePw" autocomplete="off"><button type="button" class="btn sm" id="oeGen">產生</button></div></label>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn" data-close>取消</button><button class="btn primary" id="oeSave">建立</button></div>
+</form></dialog>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var S = { me: null, google: {}, mail: {}, templates: {}, folderForms: [], orgs: [], orgId: null, forms: [], users: [], tab: null, editing: null, userMode: null };
+
+  /* ---------- API ---------- */
+  function api(method, path, body) {
+    return fetch(path, {
+      method: method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'limiter' },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        if (r.ok) return d;
+        var msg = d.error || ('錯誤 ' + r.status);
+        if (r.status === 401) { S.me = null; show('vLogin'); if (path !== '/api/me' && path !== '/api/login') showErr('loginErr', msg); }
+        else if (msg.indexOf('MUSTCHANGE') >= 0) { show('vChange', true); }
+        throw new Error(msg.replace(/^MUSTCHANGE:\s*/, ''));
+      });
+    });
+  }
+  var GET = function (p) { return api('GET', p); };
+
+  /* ---------- UI 小工具 ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function show(v, forced) {
+    ['vLogin', 'vChange', 'vApp'].forEach(function (x) { $(x).classList.toggle('hidden', x !== v); });
+    if (v === 'vChange') $('cpCancel').classList.toggle('hidden', !!(forced || (S.me && S.me.mustChange)));
+  }
+  function showErr(id, m) { $(id).textContent = m || ''; $(id).classList.toggle('hidden', !m); }
+  var tt;
+  function toast(m, bad) { var t = $('toast'); t.textContent = m; t.className = 'show' + (bad ? ' bad' : ''); clearTimeout(tt); tt = setTimeout(function () { t.className = ''; }, bad ? 6000 : 2800); }
+  function busy(b, on, txt) {
+    if (!b) return;
+    if (on) { b.dataset.label = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spin"></span> ' + (txt || '處理中'); }
+    else { b.disabled = false; if (b.dataset.label) b.innerHTML = b.dataset.label; }
+  }
+  function run(b, txt, fn) { busy(b, true, txt); return fn().catch(function (e) { toast(e.message, true); }).finally(function () { busy(b, false); }); }
+  function fmt(ms) { if (!ms) return ''; var d = new Date(ms); var p = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+  function toLocalInput(ms) { if (!ms) return ''; var d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); }
+  function fromLocalInput(v) { return v ? new Date(v).getTime() : ''; }
+  function genPw() { var c = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', a = new Uint32Array(12); crypto.getRandomValues(a);
+    return Array.prototype.map.call(a, function (n) { return c[n % c.length]; }).join('').slice(0, 10) + (2 + a[10] % 8) + 'k'; }
+  function copy(t) { try { var p = navigator.clipboard && navigator.clipboard.writeText(t); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', function () { b.closest('dialog').close(); }); });
+  var ROLE = { super: '平台管理員', org_admin: '組織管理員', org_member: '組織成員' };
+  var isSuper = function () { return S.me && S.me.role === 'super'; };
+
+  /* ---------- 登入 ---------- */
+  $('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('loginErr', ''); var b = $('lgBtn'); busy(b, true, '登入中');
+    api('POST', '/api/login', { username: $('lgUser').value, password: $('lgPw').value })
+      .then(function () { $('lgPw').value = ''; return boot(); })
+      .catch(function (e) { showErr('loginErr', e.message); }).finally(function () { busy(b, false); });
+  });
+  $('changeForm').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('changeErr', '');
+    if ($('cpNew').value !== $('cpNew2').value) return showErr('changeErr', '兩次輸入的新密碼不一樣。');
+    var b = $('cpBtn'); busy(b, true, '儲存中');
+    api('POST', '/api/password', { oldPassword: $('cpOld').value, newPassword: $('cpNew').value })
+      .then(function () { ['cpOld', 'cpNew', 'cpNew2'].forEach(function (i) { $(i).value = ''; }); toast('密碼已更新'); return boot(); })
+      .catch(function (e) { showErr('changeErr', e.message); }).finally(function () { busy(b, false); });
+  });
+  $('cpCancel').addEventListener('click', function () { show('vApp'); });
+  $('btnChangePw').addEventListener('click', function () { showErr('changeErr', ''); show('vChange'); });
+  $('btnLogout').addEventListener('click', function () { api('POST', '/api/logout').catch(function () {}); S.me = null; show('vLogin'); });
+
+  function boot() {
+    return GET('/api/me').then(function (r) {
+      S.me = r.me; S.google = r.google || {}; S.mail = r.mail || {}; S.templates = r.templates || {};
+      if (S.me.mustChange) { show('vChange', true); return; }
+      $('meName').textContent = S.me.displayName + '（' + (isSuper() ? '平台管理員' : (S.me.orgName + '・' + ROLE[S.me.role])) + '）';
+      document.querySelectorAll('.pemail').forEach(function (el) { el.textContent = S.google.email || '（平台尚未連接 Google）'; });
+      document.querySelectorAll('.fname').forEach(function (el) { el.textContent = S.google.folderName; });
+      $('noGoogle').classList.toggle('hidden', !!S.google.connected);
+      show('vApp');
+      return GET('/api/orgs').then(function (orgs) {
+        S.orgs = orgs;
+        if (isSuper()) {
+          var saved = null; try { saved = Number(localStorage.getItem('gfl_org')); } catch (e) {}
+          S.orgId = orgs.some(function (o) { return o.id === saved; }) ? saved : (orgs[0] ? orgs[0].id : null);
+        } else S.orgId = S.me.orgId;
+        renderOrgPicker(); renderTabs();
+        var h = location.hash;
+        if (h.indexOf('#settings') === 0 && isSuper()) {
+          var m = h.match(/google=([^&]*)/);
+          if (m) { var v = decodeURIComponent(m[1]); v === 'ok' ? toast('Google 帳號已連接') : toast(v, true); }
+          history.replaceState(null, '', location.pathname);
+          return go('settings');
+        }
+        return go(isSuper() && !S.orgId ? 'orgs' : 'forms');
+      });
+    }).catch(function () { show('vLogin'); });
+  }
+
+  /* ---------- 組織選擇、分頁 ---------- */
+  function renderOrgPicker() {
+    $('orgPick').classList.toggle('hidden', !isSuper() || !S.orgs.length);
+    $('orgSelect').innerHTML = S.orgs.map(function (o) { return '<option value="' + o.id + '"' + (o.id === S.orgId ? ' selected' : '') + '>' + esc(o.name) + (o.disabled ? '（停用）' : '') + '</option>'; }).join('');
+    $('brandName').textContent = isSuper() ? '表單限額管理平台' : (S.me.orgName || '表單限額管理');
+  }
+  $('orgSelect').addEventListener('change', function () {
+    S.orgId = Number(this.value); try { localStorage.setItem('gfl_org', S.orgId); } catch (e) {}
+    S.forms = []; go(['forms', 'users', 'logs'].indexOf(S.tab) >= 0 ? S.tab : 'forms');
+  });
+  function tabsFor() {
+    var t = [];
+    if (S.orgId) { t.push(['forms', '表單']); if (isSuper() || S.me.role === 'org_admin') t.push(['users', '帳號']); t.push(['logs', '紀錄']); }
+    if (isSuper()) { t.push(['orgs', '所有組織']); t.push(['settings', '平台設定']); }
+    return t;
+  }
+  function renderTabs() {
+    $('tabs').innerHTML = tabsFor().map(function (t) { return '<button class="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
+  }
+  $('tabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) go(b.dataset.tab); });
+  function go(tab) {
+    S.tab = tab;
+    document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
+    var map = { forms: 'pForms', users: 'pUsers', logs: 'pLogs', orgs: 'pOrgs', settings: 'pSettings' };
+    document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('hidden', p.id !== map[tab]); });
+    if (tab === 'forms') return loadForms();
+    if (tab === 'users') return loadUsers();
+    if (tab === 'logs') return loadLogs(S.orgId, 'logRows');
+    if (tab === 'orgs') return loadOrgs();
+    if (tab === 'settings') return loadSettings();
+  }
+  var orgObj = function () { return S.orgs.filter(function (x) { return x.id === S.orgId; })[0] || null; };
+  var orgName = function () { var o = orgObj(); return o ? o.name : ''; };
+  var canAdmin = function () { return isSuper() || S.me.role === 'org_admin'; };
+
+  /* ---------- 表單 ---------- */
+  function loadForms() {
+    if (!S.forms.length) $('formsList').innerHTML = '<div class="empty"><span class="spin"></span> 載入中…</div>';
+    GET('/api/orgs').then(function (l) { S.orgs = l; renderFolder(); });
+    return GET('/api/forms?org=' + S.orgId).then(function (l) { S.forms = l; renderForms(); })
+      .catch(function (e) { $('formsList').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+  function statusOf(f) {
+    if (f.state === 'open') return { c: 'open', t: '開放中' };
+    if (f.state === 'closed') return { c: f.reason === 'notyet' ? 'wait' : 'closed', t: '已關閉・' + f.reasonText };
+    return { c: 'unknown', t: '尚未檢查' };
+  }
+  function renderForms() {
+    $('formsCount').textContent = S.forms.length ? '共 ' + S.forms.length + ' 份' : '';
+    if (!S.forms.length) { $('formsList').innerHTML = '<div class="empty card">還沒有表單。照上面的步驟加入第一份。</div>'; return; }
+    $('formsList').innerHTML = S.forms.map(function (f) {
+      var st = statusOf(f), cnt = f.count == null ? '–' : f.count;
+      var pct = f.maxResponses && f.count != null ? Math.min(100, Math.round(f.count / f.maxResponses * 100)) : 0;
+      var notes = (f.lastError ? '<div class="note bad">' + esc(f.lastError) + '</div>' : '') +
+        (f.manualClosed ? '<div class="note warn">已手動關閉：按「開放」才會恢復自動規則。</div>' : '');
+      return '<article class="fcard" data-id="' + f.id + '">' +
+        '<div class="row"><h3 style="flex:1">' + esc(f.title) + '</h3><span class="pill ' + st.c + '">' + esc(st.t) + '</span></div>' +
+        (f.maxResponses
+          ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
+          : '<div class="small" style="margin-top:10px">目前 <b>' + cnt + '</b> 份・不限名額</div>') +
+        '<div class="facts"><div><span>開放</span>' + (fmt(f.openAt) || '立即') + '</div><div><span>截止</span>' + (fmt(f.closeAt) || '不截止') + '</div><div><span>上次檢查</span>' + (fmt(f.lastCheck) || '–') + '</div></div>' +
+        (f.notify.enabled ? '<div class="small" style="margin-bottom:10px">✉️ 名額已滿通知：已寄候補 <b>' + f.notify.stats.waitlist + '</b>、遞補 <b>' + f.notify.stats.promoted + '</b>' +
+          (f.notify.stats.failed ? '、<span style="color:var(--bad)">失敗 ' + f.notify.stats.failed + '</span>' : '') + (f.notify.stats.skipped ? '、沒有 Email ' + f.notify.stats.skipped : '') +
+          ' <button class="btn sm ghost" data-act="notices">寄信紀錄</button></div>' : '') +
+        (f.responderUrl ? '<div class="linkbox"><b>填寫連結</b><span>' + esc(f.responderUrl) + '</span><button class="btn sm" data-act="copylink">複製</button></div>' : '') +
+        notes +
+        '<div class="actions">' +
+          '<button class="btn sm primary" data-act="edit">設定</button>' +
+          (f.manualClosed ? '<button class="btn sm" data-act="open">開放</button>' : '<button class="btn sm" data-act="close">立即關閉</button>') +
+          '<button class="btn sm" data-act="check">檢查</button>' +
+          '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單／看回覆 ↗</a>' +
+          '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
+        '</div></article>';
+    }).join('');
+  }
+  function replaceForm(f) { S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; }); renderForms(); }
+  $('formsList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b || b.tagName === 'A') return;
+    var id = Number(b.closest('.fcard').dataset.id), f = S.forms.filter(function (x) { return x.id === id; })[0], act = b.dataset.act;
+    if (act === 'copylink') { copy(f.responderUrl); return toast('已複製填寫連結'); }
+    if (act === 'edit') return openFormDlg(f);
+    if (act === 'notices') return openNotices(f);
+    if (act === 'check') return run(b, '檢查中', function () { return api('POST', '/api/forms/' + id + '/check').then(function (r) { replaceForm(r.form); }); });
+    if (act === 'close') { if (!confirm('確定立即關閉「' + f.title + '」？\n之後要按「開放」才會恢復。')) return;
+      return run(b, '關閉中', function () { return api('POST', '/api/forms/' + id + '/open', { open: false }).then(function (r) { replaceForm(r.form); toast('已關閉'); }); }); }
+    if (act === 'open') return run(b, '開放中', function () { return api('POST', '/api/forms/' + id + '/open', { open: true }).then(function (r) {
+      replaceForm(r.form); toast(r.form.state === 'open' ? '已開放' : '已取消手動關閉，但目前「' + r.form.reasonText + '」，仍是關閉狀態', r.form.state !== 'open'); }); });
+    if (act === 'remove') { if (!confirm('把「' + f.title + '」移出管理？\n表單會留在雲端硬碟、維持目前的開關狀態，之後不再自動開關。')) return;
+      return run(b, '移除中', function () { return api('DELETE', '/api/forms/' + id).then(function () { S.forms = S.forms.filter(function (x) { return x.id !== id; }); renderForms(); toast('已移出管理'); }); }); }
+  });
+  /* ---------- 共用資料夾 ---------- */
+  var changingFolder = false;
+  function renderFolder() {
+    var o = orgObj(); if (!o) return;
+    var linked = !!o.folder && !changingFolder;
+    $('folderSetup').classList.toggle('hidden', linked);
+    $('folderLinked').classList.toggle('hidden', !linked);
+    $('folderForm').classList.toggle('hidden', !canAdmin());
+    $('folderMemberNote').classList.toggle('hidden', canAdmin());
+    $('btnFolderChange').classList.toggle('hidden', !canAdmin());
+    if (linked) {
+      $('folderInfo').innerHTML = '資料夾 <a href="' + esc(o.folder.url) + '" target="_blank" rel="noopener">' + esc(o.folder.name) + ' ↗</a>' + (o.folder.owner ? '・擁有者 ' + esc(o.folder.owner) : '');
+      loadFolderForms();
+    }
+  }
+  function loadFolderForms() {
+    $('folderForms').innerHTML = '<div class="muted small"><span class="spin"></span> 讀取資料夾…</div>';
+    return GET('/api/orgs/' + S.orgId + '/folder-forms').then(function (l) {
+      S.folderForms = l;
+      $('folderForms').innerHTML = l.length ? l.map(function (f) {
+        return '<div class="ff" data-id="' + esc(f.id) + '"><span class="name">📄 ' + esc(f.name) + '</span>' +
+          (f.managed ? '<span class="tag brand">' + (f.managedElsewhere ? '其他組織管理中' : '管理中') + '</span>'
+            : (!f.canEdit ? '<span class="tag off">平台沒有編輯權限</span>' : '<button class="btn sm primary" data-act="manage">加入管理</button>')) + '</div>';
+      }).join('') : '<div class="muted small">資料夾裡還沒有 Google 表單。</div>';
+    }).catch(function (e) { $('folderForms').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; });
+  }
+  $('folderForms').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act=manage]'); if (!b) return;
+    var id = b.closest('.ff').dataset.id;
+    run(b, '加入中', function () {
+      return api('POST', '/api/forms', { org: S.orgId, formId: id }).then(function (r) {
+        S.forms.unshift(r.form); renderForms(); loadFolderForms();
+        toast('已加入「' + r.form.title + '」，接著設定名額或時間');
+        openFormDlg(r.form);
+      });
+    });
+  });
+  $('folderForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('folderBtn'), '確認中', function () {
+      return api('PUT', '/api/orgs/' + S.orgId + '/folder', { url: $('folderUrl').value }).then(function (o) {
+        S.orgs = S.orgs.map(function (x) { return x.id === o.id ? o : x; });
+        changingFolder = false; $('folderUrl').value = ''; renderFolder(); toast('已連結資料夾「' + o.folder.name + '」');
+      });
+    });
+  });
+  $('btnFolderRefresh').addEventListener('click', loadFolderForms);
+  $('btnFolderChange').addEventListener('click', function () { changingFolder = true; renderFolder(); });
+
+  $('btnCheckAll').addEventListener('click', function () {
+    run($('btnCheckAll'), '檢查中', function () { return api('POST', '/api/forms/check-all', { org: S.orgId }).then(function (l) { S.forms = l; renderForms(); toast('已重新檢查'); }); });
+  });
+  function openFormDlg(f) {
+    S.editing = f.id; showErr('feErr', '');
+    $('feTitle').textContent = f.title;
+    $('feMax').value = f.maxResponses || '';
+    $('feOpen').value = toLocalInput(f.openAt); $('feClose').value = toLocalInput(f.closeAt);
+    $('feCountHint').textContent = (f.count == null ? '' : '目前已有 ' + f.count + ' 份回覆。') + '留空代表不限名額。';
+    var n = f.notify || {};
+    $('feNotify').checked = !!n.enabled;
+    $('feMailOff').classList.toggle('hidden', !!S.mail.enabled);
+    $('feWS').value = n.waitlistSubject || ''; $('feWS').placeholder = S.templates.waitlistSubject || '';
+    $('feWB').value = n.waitlistBody || ''; $('feWB').placeholder = S.templates.waitlistBody || '';
+    $('fePS').value = n.promoteSubject || ''; $('fePS').placeholder = S.templates.promoteSubject || '';
+    $('fePB').value = n.promoteBody || ''; $('fePB').placeholder = S.templates.promoteBody || '';
+    $('feSource').innerHTML = '<option value="respondent">表單收集的 Email</option>';
+    $('feSource').value = 'respondent';
+    $('feSourceHint').textContent = '讀取表單題目中…';
+    toggleNotifyBox();
+    GET('/api/forms/' + f.id + '/questions').then(function (q) {
+      $('feSource').innerHTML = '<option value="respondent">表單收集的 Email' + (q.collectsEmail ? '' : '（這份表單目前沒開）') + '</option>' +
+        q.questions.map(function (x) { return '<option value="' + esc(x.id) + '">題目：' + esc(x.title) + '</option>'; }).join('');
+      $('feSource').value = n.source || 'respondent';
+      if (!$('feSource').value) $('feSource').value = 'respondent';
+      $('feSourceHint').textContent = q.collectsEmail ? '' : '這份表單沒有開「收集電子郵件地址」。請到表單「設定 → 回覆」開啟，或改選一題讓填寫者輸入 Email 的簡答題。';
+    }).catch(function (e) { $('feSourceHint').textContent = '讀不到題目：' + e.message; });
+    $('dlgForm').showModal();
+  }
+  function toggleNotifyBox() { $('feNotifyBox').style.display = $('feNotify').checked ? '' : 'none'; }
+  $('feNotify').addEventListener('change', toggleNotifyBox);
+  function openNotices(f) {
+    $('ntTitle').textContent = '寄信紀錄・' + f.title;
+    $('ntRows').innerHTML = '<tr><td colspan="5" class="muted"><span class="spin"></span></td></tr>';
+    $('dlgNotices').showModal();
+    GET('/api/forms/' + f.id + '/notices').then(function (l) {
+      var ST = { sent: '已寄出', failed: '失敗', skipped: '略過' };
+      $('ntRows').innerHTML = l.length ? l.map(function (n) {
+        return '<tr><td class="small">' + fmt(n.at) + '</td><td>' + (n.kind === 'waitlist' ? '候補' : '遞補成功') + '</td><td>' + (n.rank || '') + '</td><td class="small">' + esc(n.email || '—') + '</td>' +
+          '<td class="small">' + ST[n.status] + (n.error ? '<div class="muted">' + esc(n.error) + '</div>' : '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="muted">還沒有寄過信</td></tr>';
+    }).catch(function (e) { $('ntRows').innerHTML = '<tr><td colspan="5">' + esc(e.message) + '</td></tr>'; });
+  }
+  $('formEdit').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('feErr', ''); var b = $('feSave'); busy(b, true, '儲存中');
+    api('PATCH', '/api/forms/' + S.editing, {
+      maxResponses: $('feMax').value, openAt: fromLocalInput($('feOpen').value), closeAt: fromLocalInput($('feClose').value),
+      notifyEnabled: $('feNotify').checked, notifySource: $('feSource').value,
+      waitlistSubject: $('feWS').value, waitlistBody: $('feWB').value, promoteSubject: $('fePS').value, promoteBody: $('fePB').value
+    }).then(function (r) { replaceForm(r.form); $('dlgForm').close(); toast('已儲存，目前狀態：' + statusOf(r.form).t); })
+      .catch(function (e) { showErr('feErr', e.message); }).finally(function () { busy(b, false); });
+  });
+
+  /* ---------- 帳號 ---------- */
+  function userRows(list, scope) {
+    return list.map(function (u) {
+      var self = u.id === S.me.id;
+      return '<tr data-id="' + u.id + '" data-scope="' + scope + '"><td><b>' + esc(u.username) + '</b><span class="tag' + (u.role !== 'org_member' ? ' brand' : '') + '">' + ROLE[u.role] + '</span>' +
+        (u.disabled ? '<span class="tag off">已停用</span>' : '') + (u.mustChange && !u.disabled ? '<span class="tag">待改密碼</span>' : '') + (self ? '<span class="tag">你</span>' : '') + '</td>' +
+        '<td>' + esc(u.displayName) + '</td><td class="small">' + esc(u.email) + '</td><td class="small">' + (fmt(u.lastLogin) || '<span class="muted">從未</span>') + '</td>' +
+        '<td class="act">' + (self ? '' : '<button class="btn sm" data-act="reset">重設密碼</button> ' +
+          (u.role === 'super' ? '' : '<button class="btn sm" data-act="role">' + (u.role === 'org_admin' ? '改為成員' : '升為管理員') + '</button> ') +
+          '<button class="btn sm" data-act="toggle">' + (u.disabled ? '啟用' : '停用') + '</button> <button class="btn sm ghost danger" data-act="delete">刪除</button>') + '</td></tr>';
+    }).join('');
+  }
+  function loadUsers() {
+    $('usersTitle').textContent = orgName() + '・帳號';
+    $('usersHint').textContent = '組織管理員可以管理這個組織的帳號；組織成員只能管理表單。';
+    return GET('/api/users?org=' + S.orgId).then(function (l) { S.users = l; $('userRows').innerHTML = userRows(l, S.orgId); })
+      .catch(function (e) { $('userRows').innerHTML = '<tr><td colspan="5">' + esc(e.message) + '</td></tr>'; });
+  }
+  function onUserAction(e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var tr = b.closest('tr'), id = Number(tr.dataset.id), scope = tr.dataset.scope;
+    var reload = scope === 'platform' ? loadSettings : loadUsers;
+    var u = (scope === 'platform' ? S.supers : S.users).filter(function (x) { return x.id === id; })[0], act = b.dataset.act;
+    if (act === 'reset') return openUserDlg('reset', scope, u);
+    if (act === 'role') return run(b, '', function () { return api('PATCH', '/api/users/' + id, { role: u.role === 'org_admin' ? 'org_member' : 'org_admin' }).then(reload); });
+    if (act === 'toggle') return run(b, '', function () { return api('PATCH', '/api/users/' + id, { disabled: !u.disabled }).then(function () { toast(u.disabled ? '已啟用' : '已停用，對方會立即被登出'); return reload(); }); });
+    if (act === 'delete') { if (!confirm('確定刪除帳號 ' + u.username + '？')) return; return run(b, '', function () { return api('DELETE', '/api/users/' + id).then(reload); }); }
+  }
+  $('userRows').addEventListener('click', onUserAction);
+  $('superRows').addEventListener('click', onUserAction);
+  $('btnAddUser').addEventListener('click', function () { openUserDlg('add', S.orgId); });
+  $('btnAddSuper').addEventListener('click', function () { openUserDlg('add', 'platform'); });
+  $('ueGen').addEventListener('click', function () { $('uePw').value = genPw(); });
+  function openUserDlg(mode, scope, u) {
+    S.userMode = { mode: mode, scope: scope, user: u }; showErr('ueErr', '');
+    var add = mode === 'add';
+    $('ueTitle').textContent = add ? (scope === 'platform' ? '新增平台管理員' : '新增帳號・' + orgName()) : '重設 ' + u.username + ' 的密碼';
+    $('ueNew').classList.toggle('hidden', !add);
+    $('ueRoleWrap').classList.toggle('hidden', scope === 'platform');
+    $('uePwLabel').textContent = add ? '初始密碼' : '新的暫時密碼';
+    $('ueSave').textContent = add ? '建立' : '重設密碼';
+    ['ueUser', 'ueName', 'ueEmail'].forEach(function (i) { $(i).value = ''; }); $('ueRole').value = 'org_member';
+    $('uePw').value = genPw(); $('dlgUser').showModal();
+  }
+  $('userEdit').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('ueErr', ''); var m = S.userMode, b = $('ueSave'), pw = $('uePw').value;
+    var who = m.mode === 'add' ? $('ueUser').value.trim().toLowerCase() : m.user.username;
+    var p = m.mode === 'add'
+      ? api('POST', '/api/users', { org: m.scope, username: $('ueUser').value, displayName: $('ueName').value, email: $('ueEmail').value, role: m.scope === 'platform' ? 'super' : $('ueRole').value, password: pw })
+      : api('POST', '/api/users/' + m.user.id + '/reset', { password: pw });
+    busy(b, true, '儲存中');
+    p.then(function () { $('dlgUser').close(); copy('網址：' + location.origin + '\n帳號：' + who + '\n密碼：' + pw); toast('完成，網址和帳密已複製，請私訊給對方'); return m.scope === 'platform' ? loadSettings() : loadUsers(); })
+      .catch(function (e) { showErr('ueErr', e.message); }).finally(function () { busy(b, false); });
+  });
+
+  /* ---------- 紀錄 ---------- */
+  function loadLogs(org, el) {
+    if (el === 'logRows') $('logsTitle').textContent = orgName() + '・操作紀錄';
+    $(el).innerHTML = '<div class="muted"><span class="spin"></span> 載入中…</div>';
+    return GET('/api/logs?org=' + org).then(function (l) {
+      $(el).innerHTML = l.length ? l.map(function (x) { return '<div class="small muted">' + fmt(x.at) + '</div><div class="small">' + esc(x.who) + '</div><div>' + esc(x.what) + '</div>'; }).join('') : '<div class="muted">還沒有紀錄</div>';
+    }).catch(function (e) { $(el).innerHTML = '<div>' + esc(e.message) + '</div>'; });
+  }
+  $('btnReloadLogs').addEventListener('click', function () { loadLogs(S.orgId, 'logRows'); });
+
+  /* ---------- 組織（平台） ---------- */
+  function loadOrgs() {
+    return GET('/api/orgs').then(function (l) {
+      S.orgs = l; renderOrgPicker();
+      $('orgRows').innerHTML = l.length ? l.map(function (o) {
+        return '<tr data-id="' + o.id + '"><td><b>' + esc(o.name) + '</b>' + (o.disabled ? '<span class="tag off">已停用</span>' : '') + '</td><td>' + o.forms + '</td><td>' + o.users + '</td>' +
+          '<td class="small">' + (o.folder ? '<a href="' + esc(o.folder.url) + '" target="_blank" rel="noopener">' + esc(o.folder.name) + ' ↗</a><div class="muted">' + esc(o.folder.owner || '') + '</div>' : '<span class="muted">尚未連結</span>') + '</td>' +
+          '<td class="act"><button class="btn sm" data-act="manage">管理</button> <button class="btn sm" data-act="rename">改名</button> <button class="btn sm" data-act="toggle">' + (o.disabled ? '啟用' : '停用') + '</button> <button class="btn sm ghost danger" data-act="delete">刪除</button></td></tr>';
+      }).join('') : '<tr><td colspan="5" class="muted">還沒有組織，按右上「建立組織」。</td></tr>';
+    });
+  }
+  $('orgRows').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var id = Number(b.closest('tr').dataset.id), o = S.orgs.filter(function (x) { return x.id === id; })[0], act = b.dataset.act;
+    if (act === 'manage') { S.orgId = id; try { localStorage.setItem('gfl_org', id); } catch (e) {} S.forms = []; renderOrgPicker(); renderTabs(); return go('forms'); }
+    if (act === 'rename') { var n = prompt('新的組織名稱', o.name); if (!n) return; return run(b, '', function () { return api('PATCH', '/api/orgs/' + id, { name: n }).then(loadOrgs); }); }
+    if (act === 'toggle') return run(b, '', function () { return api('PATCH', '/api/orgs/' + id, { disabled: !o.disabled }).then(function () { toast(o.disabled ? '已啟用' : '已停用：成員無法登入，表單停止自動檢查'); return loadOrgs(); }); });
+    if (act === 'delete') { if (prompt('刪除後這個組織的帳號和管理設定都會消失（表單留在組織自己的雲端硬碟，維持目前的開關狀態）。\n請輸入組織名稱確認：') !== o.name) return;
+      return run(b, '', function () { return api('DELETE', '/api/orgs/' + id).then(function () { if (S.orgId === id) S.orgId = null; return loadOrgs().then(renderTabs); }); }); }
+  });
+  $('btnAddOrg').addEventListener('click', function () { showErr('oeErr', ''); ['oeName', 'oeUser', 'oeEmail'].forEach(function (i) { $(i).value = ''; }); $('oePw').value = genPw(); $('dlgOrg').showModal(); });
+  $('oeGen').addEventListener('click', function () { $('oePw').value = genPw(); });
+  $('orgEdit').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('oeErr', ''); var b = $('oeSave'), user = $('oeUser').value.trim().toLowerCase(), pw = $('oePw').value; busy(b, true, '建立中');
+    api('POST', '/api/orgs', { name: $('oeName').value, admin: { username: user, email: $('oeEmail').value, password: pw } })
+      .then(function (l) { $('dlgOrg').close(); copy('網址：' + location.origin + '\n帳號：' + user + '\n密碼：' + pw); toast('組織已建立，管理員帳密已複製'); S.orgs = l;
+        if (!S.orgId) S.orgId = l[l.length - 1].id; renderTabs(); return loadOrgs(); })
+      .catch(function (e) { showErr('oeErr', e.message); }).finally(function () { busy(b, false); });
+  });
+
+  /* ---------- 平台設定 ---------- */
+  function loadSettings() {
+    return GET('/api/me').then(function (r) {
+      var g = r.google; S.google = g;
+      $('gDot').classList.toggle('on', !!g.connected);
+      $('gStatus').textContent = g.connected ? '已連接：' + g.email : '未連接';
+      $('gSub').textContent = !g.configured ? '伺服器還沒設定 GOOGLE_CLIENT_ID／GOOGLE_CLIENT_SECRET，請先照 README 設定環境變數。'
+        : g.connected ? '組織要把資料夾共用給這個帳號。' : '連接後組織才能加入表單。';
+      $('fnameInput').value = g.folderName || '';
+      var m = r.mail || {}; S.mail = m;
+      $('mDot').classList.toggle('on', !!m.enabled);
+      $('mStatus').textContent = m.enabled ? '可以寄信（' + (m.provider === 'resend' ? 'Resend' : 'SMTP') + '）' : '還沒設定寄信';
+      $('mSub').textContent = m.enabled ? '寄件者：' + (m.from || '') : '設定 RESEND_API_KEY 或 SMTP_HOST／SMTP_USER／SMTP_PASS，再加上 MAIL_FROM。';
+      $('btnGConnect').textContent = g.connected ? '重新連接' : '連接 Google';
+      $('btnGConnect').disabled = !g.configured;
+      $('btnGDisconnect').classList.toggle('hidden', !g.connected);
+      return Promise.all([
+        GET('/api/users?org=platform').then(function (l) { S.supers = l; $('superRows').innerHTML = userRows(l, 'platform'); }),
+        loadLogs('platform', 'platformLogs')
+      ]);
+    });
+  }
+  $('fnameForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('fnameBtn'), '', function () { return api('PUT', '/api/settings', { folderName: $('fnameInput').value }).then(function (r) { S.google.folderName = r.folderName; toast('已儲存資料夾名稱「' + r.folderName + '」'); }); });
+  });
+  $('mailTestForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('mailTestBtn'), '寄送中', function () { return api('POST', '/api/mail/test', { to: $('mailTo').value }).then(function () { toast('測試信已寄出，請檢查收件匣'); }); });
+  });
+  $('btnGConnect').addEventListener('click', function () {
+    run($('btnGConnect'), '前往 Google', function () { return api('POST', '/api/google/connect').then(function (r) { location.href = r.url; }); });
+  });
+  $('btnGDisconnect').addEventListener('click', function () {
+    if (!confirm('中斷後所有表單都會停止自動檢查，直到重新連接。確定？')) return;
+    run($('btnGDisconnect'), '', function () { return api('POST', '/api/google/disconnect').then(loadSettings); });
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

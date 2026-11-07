@@ -5,3 +5,7 @@
 node_modules/
 test/shots/
 .DS_Store
+
+# Railway 版本機資料與測試截圖
+railway/data/
+railway/test/shots/

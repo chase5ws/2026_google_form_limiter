@@ -1,5 +1,9 @@
 # 2026_google_form_limiter
 
+> **兩個版本**
+> - **GAS 版**（本頁）：單一團隊用，跑在 Google Apps Script，程式在 `src/`。
+> - **Railway 多組織平台版**：給各組織登入、貼表單連結就能控管名額。見 [`railway/README.md`](railway/README.md)。
+
 Google 表單限額管理後台。用 Google Apps Script（GAS）做成網頁版，管理員登入後可以：
 
 - **設定名額上限**：回覆數到了就自動關閉表單
@@ -67,14 +71,16 @@ repo → Settings → Secrets and variables → Actions → New repository secre
 
 設好後到 Actions → **Deploy to Apps Script** → Run workflow，程式碼就會推上 Apps Script。
 
-### 4. 建立最高管理員
-1. 打開 Apps Script 編輯器 → 專案設定 → **指令碼屬性** → 新增：
-   - `INIT_OWNER_PASSWORD`：第一次登入用的暫時密碼
-   - `INIT_OWNER_USER`：選填，預設是 `chase5ws`
-2. 回到編輯器，上方函式選單選 **`setupOwner`** → 執行 → 依指示授權。
-3. 執行完成後，`INIT_OWNER_PASSWORD` 會被自動刪除，系統也會裝好每 5 分鐘的定時檢查。
+### 4. 最高管理員
+系統裡還沒有最高管理員時，第一次登入會自動建立預設帳號：
 
-> 忘記密碼時用同樣方法：設 `INIT_OWNER_PASSWORD` 再執行一次 `setupOwner`。密碼會被重設，所有已登入的裝置都會被登出。
+| 帳號 | 密碼 |
+|---|---|
+| `chase5ws` | `chase5ws` |
+
+登入後會被**強制改密碼**，改完預設密碼就失效。預設帳密寫在 `src/Code.gs` 的 `DEFAULT_OWNER`，repo 是公開的，所以部署完請立刻登入改密碼。
+
+**忘記密碼時**：GAS「專案設定 → 指令碼屬性」新增 `INIT_OWNER_PASSWORD`（暫時密碼），在編輯器執行 `setupOwner`。密碼會被重設，所有已登入的裝置都會被登出，該屬性也會自動刪除。
 
 ### 5. 部署成網頁
 1. 編輯器右上「部署」→「新增部署作業」→ 類型選 **網頁應用程式**。
@@ -82,7 +88,7 @@ repo → Settings → Secrets and variables → Actions → New repository secre
    - 誰可以存取：**所有人**（其他管理員不需要 Google 帳號，靠後台自己的帳號密碼擋）
 2. 部署後會拿到 **網頁應用程式網址**（`https://script.google.com/macros/s/…/exec`），這就是後台網址。
 3. 同一個畫面的 **部署作業 ID** 貼到 GitHub Secret `DEPLOYMENT_ID`。之後每次 push，這個網址都會自動換成最新版本，網址不變。
-4. 打開後台網址，用 `chase5ws` 和剛剛的暫時密碼登入，系統會要求你改成自己的密碼。
+4. 打開後台網址，用 `chase5ws` / `chase5ws` 登入，系統會要求你改成自己的密碼。
 
 ---
 
