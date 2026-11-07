@@ -1,0 +1,63 @@
+# push 到 main → 跑後端測試 → 用 clasp 推上 Apps Script → 更新網頁版部署（網址不變）
+# 需要的 GitHub Secrets（設定方式見 README「自動部署」）：
+#   CLASPRC_JSON   你電腦上 ~/.clasprc.json 的完整內容
+#   SCRIPT_ID      Apps Script 專案 ID
+#   DEPLOYMENT_ID  網頁應用程式的部署 ID（選填；沒填就只推程式碼，不更新網址上的版本）
+name: Deploy to Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/backend.test.js'
+      - 'test/gasmock.js'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: gas-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 後端測試
+        run: node test/backend.test.js
+
+      - name: 檢查 Secrets
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$SCRIPT_ID" ]; then
+            echo "::error::缺少 CLASPRC_JSON 或 SCRIPT_ID，請到 GitHub → Settings → Secrets and variables → Actions 新增"
+            exit 1
+          fi
+
+      - name: 安裝 clasp
+        run: npm install -g @google/clasp@2.4.2
+
+      - name: 寫入 clasp 設定
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: 推送程式碼
+        run: clasp push --force
+
+      - name: 更新網頁應用程式部署
+        if: env.DEPLOYMENT_ID != ''
+        run: clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7} $(date -u +%F)"
+
+      - name: 清除憑證
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json

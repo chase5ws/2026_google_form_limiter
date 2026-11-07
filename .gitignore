@@ -1,0 +1,7 @@
+# clasp 憑證與本機設定，不要 commit
+.clasprc.json
+.clasp.json
+
+node_modules/
+test/shots/
+.DS_Store

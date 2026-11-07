@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>表單限額管理</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #1d2330; --muted: #6b7280; --line: #e3e6eb;
+    --brand: #5b4bdb; --brand-weak: #eeebff; --ok: #12805c; --ok-weak: #e3f6ee;
+    --warn: #b45309; --warn-weak: #fdf1e1; --bad: #c0362c; --bad-weak: #fdecea;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  /* 按鈕與表單元件 */
+  .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: #c8ccd4; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.danger { color: var(--bad); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.sm { padding: 4px 10px; font-size: 13px; }
+  a.btn { text-decoration: none; color: var(--brand); display: inline-flex; align-items: center; }
+  .row > input.grow { width: auto; flex: 1 1 240px; }
+  label.field { display: block; margin-bottom: 14px; }
+  label.field > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], input[type=password], input[type=number], input[type=datetime-local], select, textarea {
+    width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-weak); border-color: var(--brand); }
+  textarea { resize: vertical; min-height: 60px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+
+  /* 登入畫面 */
+  .center { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .auth { width: 100%; max-width: 380px; background: var(--card); border-radius: 16px; padding: 28px;
+    box-shadow: 0 10px 30px rgba(20, 24, 40, .08); }
+  .auth h1 { font-size: 20px; margin: 0 0 4px; }
+  .auth p { margin: 0 0 20px; }
+  .auth .btn.primary { width: 100%; padding: 10px; }
+  .err { color: var(--bad); background: var(--bad-weak); border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; font-size: 14px; }
+
+  /* 主畫面 */
+  header { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .bar { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+  .logo { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .logo i { width: 26px; height: 26px; border-radius: 7px; background: var(--brand); display: inline-grid; place-items: center;
+    color: #fff; font-style: normal; font-size: 14px; }
+  .me { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .tabs { max-width: 1040px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; }
+  .tab { border: 0; background: none; padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; color: var(--muted); }
+  .tab.on { color: var(--brand); border-color: var(--brand); font-weight: 600; }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+  .section-head h2 { font-size: 17px; margin: 0; }
+
+  /* 表單卡片 */
+  .forms { display: grid; gap: 12px; margin-top: 14px; }
+  .fcard { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .fcard h3 { margin: 0; font-size: 16px; word-break: break-word; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 600; }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .pill.open { color: var(--ok); background: var(--ok-weak); }
+  .pill.closed { color: var(--bad); background: var(--bad-weak); }
+  .pill.wait { color: var(--warn); background: var(--warn-weak); }
+  .pill.unknown { color: var(--muted); background: #eef0f3; }
+  .meter { height: 8px; background: #eef0f3; border-radius: 99px; overflow: hidden; margin: 12px 0 6px; }
+  .meter > b { display: block; height: 100%; background: var(--brand); border-radius: 99px; transition: width .3s; }
+  .meter.full > b { background: var(--bad); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 16px; margin: 10px 0 12px; font-size: 14px; }
+  .facts div span { color: var(--muted); margin-right: 6px; }
+  .note { font-size: 13px; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+  .note.bad { background: var(--bad-weak); color: var(--bad); }
+  .note.warn { background: var(--warn-weak); color: var(--warn); }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+  .empty { text-align: center; padding: 40px 16px; color: var(--muted); }
+
+  /* 表格 */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; }
+  td.act { white-space: nowrap; text-align: right; }
+  .tag { font-size: 12px; border-radius: 6px; padding: 1px 7px; background: #eef0f3; color: var(--muted); margin-left: 4px; }
+  .tag.owner { background: var(--brand-weak); color: var(--brand); }
+  .tag.off { background: var(--bad-weak); color: var(--bad); }
+
+  .log { display: grid; grid-template-columns: 130px 110px 1fr; gap: 4px 12px; font-size: 14px; }
+  .log div { padding: 6px 0; border-bottom: 1px solid var(--line); word-break: break-word; }
+
+  /* 對話框 */
+  dialog { border: 0; border-radius: 16px; padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+  dialog::backdrop { background: rgba(20, 24, 40, .45); }
+  .dlg-head { padding: 16px 20px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .dlg-body { padding: 18px 20px; max-height: 70vh; overflow: auto; }
+  .dlg-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  details summary { cursor: pointer; color: var(--brand); margin: 4px 0 12px; font-size: 14px; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1d2330; color: #fff;
+    padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; max-width: calc(100vw - 32px); opacity: 0;
+    transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  #toast.bad { background: var(--bad); }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: s .7s linear infinite; vertical-align: -2px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+
+  @media (max-width: 600px) {
+    .grid2 { grid-template-columns: 1fr; }
+    .log { grid-template-columns: 1fr; }
+    .log div:nth-child(3n+1), .log div:nth-child(3n+2) { border: 0; padding-bottom: 0; color: var(--muted); font-size: 12px; }
+    .me .who { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 登入 -->
+<section id="vLogin" class="center hidden">
+  <form class="auth" id="loginForm" autocomplete="on">
+    <h1>表單限額管理</h1>
+    <p class="muted small">請用管理員帳號登入</p>
+    <div id="loginErr" class="err hidden"></div>
+    <label class="field"><span>帳號</span><input type="text" id="lgUser" autocomplete="username" autocapitalize="none" required></label>
+    <label class="field"><span>密碼</span><input type="password" id="lgPw" autocomplete="current-password" required></label>
+    <button class="btn primary" id="lgBtn">登入</button>
+  </form>
+</section>
+
+<!-- 強制改密碼 -->
+<section id="vChange" class="center hidden">
+  <form class="auth" id="changeForm">
+    <h1>設定新密碼</h1>
+    <p class="muted small">第一次登入或密碼被重設後，要先設定自己的密碼。</p>
+    <div id="changeErr" class="err hidden"></div>
+    <label class="field"><span>目前的密碼</span><input type="password" id="cpOld" autocomplete="current-password" required></label>
+    <label class="field"><span>新密碼</span><input type="password" id="cpNew" autocomplete="new-password" required>
+      <div class="hint">至少 8 個字元，要有英文和數字，不能包含帳號名稱</div></label>
+    <label class="field"><span>再輸入一次新密碼</span><input type="password" id="cpNew2" autocomplete="new-password" required></label>
+    <div class="row">
+      <button class="btn primary grow" id="cpBtn">儲存新密碼</button>
+      <button type="button" class="btn" id="cpCancel">取消</button>
+    </div>
+  </form>
+</section>
+
+<!-- 主畫面 -->
+<section id="vApp" class="hidden">
+  <header>
+    <div class="bar">
+      <div class="logo"><i>限</i>表單限額管理</div>
+      <div class="me">
+        <span class="who small muted" id="meName"></span>
+        <button class="btn sm ghost" id="btnChangePw">改密碼</button>
+        <button class="btn sm" id="btnLogout">登出</button>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab on" data-tab="forms">表單</button>
+      <button class="tab" data-tab="admins" id="tabAdmins">管理員</button>
+      <button class="tab" data-tab="logs">操作紀錄</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 表單 -->
+    <div id="pForms">
+      <div class="card">
+        <form class="row" id="addFormForm">
+          <input type="text" class="grow" id="addFormUrl" placeholder="貼上 Google 表單的「編輯」網址 https://docs.google.com/forms/d/…/edit" required>
+          <button class="btn primary" id="addFormBtn">加入管理</button>
+        </form>
+        <div class="hint">部署這個後台的 Google 帳號要有該表單的編輯權限。加入後系統會在有人送出時、以及每 5 分鐘自動檢查一次。</div>
+      </div>
+      <div class="section-head" style="margin-top:20px">
+        <h2>受管理的表單</h2>
+        <span class="muted small" id="formsCount"></span>
+        <button class="btn sm" id="btnRefreshAll" style="margin-left:auto">重新檢查全部</button>
+      </div>
+      <div class="forms" id="formsList"></div>
+    </div>
+
+    <!-- 管理員 -->
+    <div id="pAdmins" class="hidden">
+      <div class="section-head">
+        <h2>管理員</h2>
+        <button class="btn sm primary" id="btnAddAdmin" style="margin-left:auto">新增管理員</button>
+      </div>
+      <div class="card tbl-wrap">
+        <table>
+          <thead><tr><th>帳號</th><th>顯示名稱</th><th>最後登入</th><th>建立者</th><th></th></tr></thead>
+          <tbody id="adminRows"></tbody>
+        </table>
+      </div>
+      <p class="muted small">最高管理員可以管理帳號；一般管理員只能管理表單。新帳號和被重設密碼的帳號，下次登入都要先改密碼。</p>
+    </div>
+
+    <!-- 紀錄 -->
+    <div id="pLogs" class="hidden">
+      <div class="section-head">
+        <h2>操作紀錄</h2>
+        <span class="muted small">保留最近約 250 筆</span>
+        <button class="btn sm" id="btnReloadLogs" style="margin-left:auto">重新整理</button>
+      </div>
+      <div class="card"><div class="log" id="logRows"></div></div>
+    </div>
+  </main>
+</section>
+
+<!-- 編輯表單設定 -->
+<dialog id="dlgForm">
+  <form method="dialog" id="formEdit">
+    <div class="dlg-head" id="feTitle">表單設定</div>
+    <div class="dlg-body">
+      <div id="feErr" class="err hidden"></div>
+      <label class="field"><span>名額上限（份）</span>
+        <input type="number" id="feMax" min="1" step="1" placeholder="留空代表不限名額">
+        <div class="hint" id="feCountHint"></div></label>
+      <div class="grid2">
+        <label class="field"><span>開放時間</span><input type="datetime-local" id="feOpen">
+          <div class="hint">留空代表立即開放</div></label>
+        <label class="field"><span>截止時間</span><input type="datetime-local" id="feClose">
+          <div class="hint">留空代表不截止</div></label>
+      </div>
+      <div class="hint" style="margin:-6px 0 12px">時間以台北時間為準，系統每 5 分鐘檢查一次，所以開關可能晚幾分鐘。</div>
+      <details>
+        <summary>關閉時顯示給填寫者的訊息</summary>
+        <label class="field"><span>名額已滿</span><textarea id="feMsgFull"></textarea></label>
+        <label class="field"><span>尚未開放</span><textarea id="feMsgNotYet"></textarea></label>
+        <label class="field"><span>已截止／手動關閉</span><textarea id="feMsgEnded"></textarea></label>
+      </details>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>取消</button>
+      <button type="submit" class="btn primary" id="feSave" value="save">儲存並套用</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 新增管理員／重設密碼 -->
+<dialog id="dlgAdmin">
+  <form method="dialog" id="adminEdit">
+    <div class="dlg-head" id="aeTitle">新增管理員</div>
+    <div class="dlg-body">
+      <div id="aeErr" class="err hidden"></div>
+      <label class="field" id="aeUserWrap"><span>帳號</span>
+        <input type="text" id="aeUser" autocapitalize="none" autocomplete="off" placeholder="英文小寫、數字、. _ -，3–32 字">
+      </label>
+      <label class="field" id="aeNameWrap"><span>顯示名稱</span><input type="text" id="aeName" maxlength="40" placeholder="選填，例如：小明"></label>
+      <label class="field" id="aeRoleWrap"><span>權限</span>
+        <select id="aeRole"><option value="admin">一般管理員（管理表單）</option><option value="owner">最高管理員（也能管理帳號）</option></select>
+      </label>
+      <label class="field"><span id="aePwLabel">初始密碼</span>
+        <div class="row"><input type="text" class="grow" id="aePw" autocomplete="off">
+          <button type="button" class="btn sm" id="aeGen">產生</button></div>
+        <div class="hint">對方第一次登入時會被要求改成自己的密碼。請用私訊交給對方。</div>
+      </label>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>取消</button>
+      <button type="submit" class="btn primary" id="aeSave" value="save">建立</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------- 狀態 ---------------- */
+  var S = { token: null, me: null, forms: [], admins: [], editing: null, adminMode: null };
+  var store = {
+    get: function () { try { return sessionStorage.getItem('gfl_token'); } catch (e) { return null; } },
+    set: function (v) { try { v ? sessionStorage.setItem('gfl_token', v) : sessionStorage.removeItem('gfl_token'); } catch (e) {} }
+  };
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------------- 呼叫後端 ---------------- */
+  function api(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(function (err) {
+          var msg = String((err && err.message) || err || '發生錯誤').replace(/^(Exception|Error):\s*/, '');
+          if (msg.indexOf('AUTH:') >= 0) {
+            setToken(null);
+            show('vLogin');
+            showErr('loginErr', msg.replace(/^.*AUTH:\s*/, ''));
+          } else if (msg.indexOf('MUSTCHANGE:') >= 0) {
+            show('vChange', true);
+          }
+          reject(new Error(msg.replace(/^.*(AUTH|MUSTCHANGE):\s*/, '')));
+        })[fn].apply(null, args);
+    });
+  }
+  function setToken(t) { S.token = t; store.set(t); }
+
+  /* ---------------- 共用 UI ---------------- */
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function show(view, forced) {
+    ['vLogin', 'vChange', 'vApp'].forEach(function (v) { $(v).classList.toggle('hidden', v !== view); });
+    if (view === 'vChange') $('cpCancel').classList.toggle('hidden', !!(forced || (S.me && S.me.mustChange)));
+  }
+  function showErr(id, msg) { var el = $(id); el.textContent = msg || ''; el.classList.toggle('hidden', !msg); }
+  var toastTimer;
+  function toast(msg, bad) {
+    var t = $('toast'); t.textContent = msg; t.className = 'show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = ''; }, bad ? 5000 : 2600);
+  }
+  function busy(btn, on, text) {
+    if (!btn) return;
+    if (on) { btn.dataset.label = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spin"></span> ' + (text || '處理中'); }
+    else { btn.disabled = false; if (btn.dataset.label) btn.innerHTML = btn.dataset.label; }
+  }
+  function run(btn, text, promiseFn) {
+    busy(btn, true, text);
+    return promiseFn().catch(function (e) { toast(e.message, true); throw e; })
+      .finally(function () { busy(btn, false); });
+  }
+  document.querySelectorAll('[data-close]').forEach(function (b) {
+    b.addEventListener('click', function () { b.closest('dialog').close(); });
+  });
+
+  /* ---------------- 登入流程 ---------------- */
+  $('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    showErr('loginErr', '');
+    var btn = $('lgBtn');
+    busy(btn, true, '登入中');
+    api('login', $('lgUser').value, $('lgPw').value).then(function (r) {
+      $('lgPw').value = '';
+      setToken(r.token); S.me = r.me;
+      enter();
+    }).catch(function (e) { showErr('loginErr', e.message); })
+      .finally(function () { busy(btn, false); });
+  });
+
+  $('changeForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    showErr('changeErr', '');
+    if ($('cpNew').value !== $('cpNew2').value) { showErr('changeErr', '兩次輸入的新密碼不一樣。'); return; }
+    var btn = $('cpBtn');
+    busy(btn, true, '儲存中');
+    api('changePassword', S.token, $('cpOld').value, $('cpNew').value).then(function (r) {
+      ['cpOld', 'cpNew', 'cpNew2'].forEach(function (id) { $(id).value = ''; });
+      setToken(r.token); S.me = r.me;
+      toast('密碼已更新');
+      enter();
+    }).catch(function (e) { showErr('changeErr', e.message); })
+      .finally(function () { busy(btn, false); });
+  });
+  $('cpCancel').addEventListener('click', function () { show('vApp'); });
+  $('btnChangePw').addEventListener('click', function () { showErr('changeErr', ''); show('vChange'); });
+  $('btnLogout').addEventListener('click', function () {
+    api('logout', S.token).catch(function () {});
+    setToken(null); S.me = null;
+    show('vLogin');
+  });
+
+  function enter() {
+    if (S.me.mustChange) { show('vChange', true); return; }
+    $('meName').textContent = S.me.displayName + (S.me.role === 'owner' ? '（最高管理員）' : '');
+    $('tabAdmins').classList.toggle('hidden', S.me.role !== 'owner');
+    show('vApp');
+    switchTab('forms');
+    loadForms(true);
+  }
+
+  /* ---------------- 分頁 ---------------- */
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () { switchTab(t.dataset.tab); });
+  });
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.tab === name); });
+    $('pForms').classList.toggle('hidden', name !== 'forms');
+    $('pAdmins').classList.toggle('hidden', name !== 'admins');
+    $('pLogs').classList.toggle('hidden', name !== 'logs');
+    if (name === 'admins') loadAdmins();
+    if (name === 'logs') loadLogs();
+  }
+
+  /* ---------------- 表單 ---------------- */
+  function loadForms(thenRefresh) {
+    if (!S.forms.length) $('formsList').innerHTML = '<div class="empty"><span class="spin"></span> 載入中…</div>';
+    return api('listForms', S.token).then(function (list) {
+      S.forms = list; renderForms();
+      if (thenRefresh && list.length) {
+        busy($('btnRefreshAll'), true, '檢查中');
+        api('refreshAllForms', S.token).then(function (l2) { S.forms = l2; renderForms(); })
+          .catch(function (e) { toast(e.message, true); })
+          .finally(function () { busy($('btnRefreshAll'), false); });
+      }
+    }).catch(function (e) { $('formsList').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+
+  function statusOf(f) {
+    if (f.state === 'open') return { cls: 'open', text: '開放中' };
+    if (f.state === 'unpublished') return { cls: 'wait', text: '尚未發布' };
+    if (f.state === 'closed') return { cls: f.reason === 'notyet' ? 'wait' : 'closed', text: '已關閉・' + f.reasonText };
+    return { cls: 'unknown', text: '尚未檢查' };
+  }
+
+  function renderForms() {
+    var list = S.forms;
+    $('formsCount').textContent = list.length ? '共 ' + list.length + ' 份' : '';
+    if (!list.length) {
+      $('formsList').innerHTML = '<div class="empty card">還沒有表單。在上方貼上表單的編輯網址就能開始。</div>';
+      return;
+    }
+    $('formsList').innerHTML = list.map(function (f) {
+      var st = statusOf(f);
+      var count = f.count == null ? '–' : f.count;
+      var pct = f.maxResponses && f.count != null ? Math.min(100, Math.round(f.count / f.maxResponses * 100)) : 0;
+      var full = f.maxResponses && f.count >= f.maxResponses;
+      var notes = '';
+      if (f.lastError) notes += '<div class="note bad">' + esc(f.lastError) + '</div>';
+      if (f.manualClosed) notes += '<div class="note warn">已手動關閉：按「開放」才會恢復自動規則。</div>';
+      if (!f.hasSubmitTrigger) notes += '<div class="note warn">這份表單沒有送出觸發器，只靠每 5 分鐘檢查，名額可能會多出幾份。</div>';
+      return '<article class="fcard" data-id="' + esc(f.id) + '">' +
+        '<div class="row"><h3 class="grow">' + esc(f.title) + '</h3><span class="pill ' + st.cls + '">' + esc(st.text) + '</span></div>' +
+        (f.maxResponses
+          ? '<div class="meter' + (full ? ' full' : '') + '"><b style="width:' + pct + '%"></b></div>' +
+            '<div class="small"><b>' + count + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
+          : '<div class="small" style="margin-top:10px">目前 <b>' + count + '</b> 份・不限名額</div>') +
+        '<div class="facts">' +
+          '<div><span>開放</span>' + (esc(f.openAtText) || '立即') + '</div>' +
+          '<div><span>截止</span>' + (esc(f.closeAtText) || '不截止') + '</div>' +
+          '<div><span>上次檢查</span>' + (esc(f.lastCheck) || '–') + '</div>' +
+        '</div>' + notes +
+        '<div class="actions">' +
+          '<button class="btn sm primary" data-act="edit">設定</button>' +
+          (f.manualClosed
+            ? '<button class="btn sm" data-act="open">開放</button>'
+            : '<button class="btn sm" data-act="close">立即關閉</button>') +
+          '<button class="btn sm" data-act="refresh">檢查</button>' +
+          '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單 ↗</a>' +
+          (f.publishedUrl ? '<a class="btn sm ghost" href="' + esc(f.publishedUrl) + '" target="_blank" rel="noopener">填寫頁 ↗</a>' : '') +
+          '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
+        '</div></article>';
+    }).join('');
+  }
+
+  function replaceForm(f) {
+    S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; });
+    renderForms();
+  }
+
+  $('formsList').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var id = btn.closest('.fcard').dataset.id;
+    var f = S.forms.filter(function (x) { return x.id === id; })[0];
+    var act = btn.dataset.act;
+    if (act === 'edit') return openFormDialog(f);
+    if (act === 'refresh') return run(btn, '檢查中', function () { return api('refreshForm', S.token, id).then(replaceForm); });
+    if (act === 'close') {
+      if (!confirm('確定要立即關閉「' + f.title + '」？\n關閉後不會自動重新開放，要再按「開放」。')) return;
+      return run(btn, '關閉中', function () { return api('setFormOpen', S.token, id, false).then(function (r) { replaceForm(r); toast('已關閉'); }); });
+    }
+    if (act === 'open') return run(btn, '開放中', function () {
+      return api('setFormOpen', S.token, id, true).then(function (r) {
+        replaceForm(r);
+        toast(r.state === 'open' ? '已開放' : '已取消手動關閉，但目前「' + r.reasonText + '」，所以仍是關閉狀態', r.state !== 'open');
+      });
+    });
+    if (act === 'remove') {
+      if (!confirm('把「' + f.title + '」移出管理？\n表單本身不會被刪除，會維持目前的開關狀態，之後也不再自動開關。')) return;
+      return run(btn, '移除中', function () { return api('removeForm', S.token, id).then(function (l) { S.forms = l; renderForms(); toast('已移出管理'); }); });
+    }
+  });
+
+  $('addFormForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = $('addFormBtn');
+    run(btn, '加入中', function () {
+      return api('addForm', S.token, $('addFormUrl').value).then(function (f) {
+        $('addFormUrl').value = '';
+        S.forms.push(f); renderForms();
+        toast('已加入「' + f.title + '」，接著設定名額或時間');
+        openFormDialog(f);
+      });
+    }).catch(function () {});
+  });
+
+  $('btnRefreshAll').addEventListener('click', function () {
+    run($('btnRefreshAll'), '檢查中', function () {
+      return api('refreshAllForms', S.token).then(function (l) { S.forms = l; renderForms(); toast('已重新檢查'); });
+    }).catch(function () {});
+  });
+
+  function openFormDialog(f) {
+    S.editing = f.id;
+    showErr('feErr', '');
+    $('feTitle').textContent = f.title;
+    $('feMax').value = f.maxResponses || '';
+    $('feOpen').value = f.openAt || '';
+    $('feClose').value = f.closeAt || '';
+    $('feMsgFull').value = f.msgFull || '';
+    $('feMsgNotYet').value = f.msgNotYet || '';
+    $('feMsgEnded').value = f.msgEnded || '';
+    $('feCountHint').textContent = f.count == null ? '留空代表不限名額' : '目前已有 ' + f.count + ' 份回覆。留空代表不限名額。';
+    $('dlgForm').showModal();
+  }
+
+  $('formEdit').addEventListener('submit', function (e) {
+    e.preventDefault();
+    showErr('feErr', '');
+    var btn = $('feSave');
+    busy(btn, true, '儲存中');
+    api('updateForm', S.token, S.editing, {
+      maxResponses: $('feMax').value,
+      openAt: $('feOpen').value,
+      closeAt: $('feClose').value,
+      msgFull: $('feMsgFull').value,
+      msgNotYet: $('feMsgNotYet').value,
+      msgEnded: $('feMsgEnded').value
+    }).then(function (f) {
+      replaceForm(f);
+      $('dlgForm').close();
+      toast('已儲存，目前狀態：' + statusOf(f).text);
+    }).catch(function (e) {
+      showErr('feErr', e.message);
+      if (e.message.indexOf('設定已儲存') === 0) loadForms(false);
+    }).finally(function () { busy(btn, false); });
+  });
+
+  /* ---------------- 管理員 ---------------- */
+  function loadAdmins() {
+    $('adminRows').innerHTML = '<tr><td colspan="5" class="muted"><span class="spin"></span> 載入中…</td></tr>';
+    return api('listAdmins', S.token).then(function (l) { S.admins = l; renderAdmins(); })
+      .catch(function (e) { $('adminRows').innerHTML = '<tr><td colspan="5">' + esc(e.message) + '</td></tr>'; });
+  }
+
+  function renderAdmins() {
+    $('adminRows').innerHTML = S.admins.map(function (a) {
+      var self = a.username === S.me.username;
+      return '<tr data-u="' + esc(a.username) + '">' +
+        '<td><b>' + esc(a.username) + '</b>' +
+          (a.role === 'owner' ? '<span class="tag owner">最高</span>' : '<span class="tag">一般</span>') +
+          (a.disabled ? '<span class="tag off">已停用</span>' : '') +
+          (a.mustChange && !a.disabled ? '<span class="tag">待改密碼</span>' : '') +
+          (self ? '<span class="tag">你</span>' : '') + '</td>' +
+        '<td>' + esc(a.displayName) + '</td>' +
+        '<td class="small">' + (esc(a.lastLogin) || '<span class="muted">從未</span>') + '</td>' +
+        '<td class="small muted">' + esc(a.createdBy) + '</td>' +
+        '<td class="act">' + (self ? '' :
+          '<button class="btn sm" data-act="reset">重設密碼</button> ' +
+          '<button class="btn sm" data-act="role">' + (a.role === 'owner' ? '改為一般' : '升為最高') + '</button> ' +
+          '<button class="btn sm" data-act="toggle">' + (a.disabled ? '啟用' : '停用') + '</button> ' +
+          '<button class="btn sm ghost danger" data-act="delete">刪除</button>') +
+        '</td></tr>';
+    }).join('');
+  }
+
+  $('adminRows').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    var u = btn.closest('tr').dataset.u;
+    var a = S.admins.filter(function (x) { return x.username === u; })[0];
+    var act = btn.dataset.act;
+    var done = function (l) { S.admins = l; renderAdmins(); };
+    if (act === 'reset') return openAdminDialog('reset', a);
+    if (act === 'role') return run(btn, '', function () {
+      return api('updateAdmin', S.token, u, { role: a.role === 'owner' ? 'admin' : 'owner' }).then(done);
+    }).catch(function () {});
+    if (act === 'toggle') return run(btn, '', function () {
+      return api('updateAdmin', S.token, u, { disabled: !a.disabled }).then(function (l) { done(l); toast(a.disabled ? '已啟用 ' + u : '已停用 ' + u + '，對方會立即被登出'); });
+    }).catch(function () {});
+    if (act === 'delete') {
+      if (!confirm('確定刪除管理員 ' + u + '？這個動作無法復原。')) return;
+      return run(btn, '', function () { return api('deleteAdmin', S.token, u).then(function (l) { done(l); toast('已刪除 ' + u); }); }).catch(function () {});
+    }
+  });
+
+  $('btnAddAdmin').addEventListener('click', function () { openAdminDialog('add'); });
+
+  function genPw() {
+    var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var arr = new Uint32Array(12); crypto.getRandomValues(arr);
+    var s = Array.prototype.map.call(arr, function (n) { return chars[n % chars.length]; }).join('');
+    return s.slice(0, 10) + (2 + arr[10] % 8) + 'a';
+  }
+  $('aeGen').addEventListener('click', function () { $('aePw').value = genPw(); });
+
+  function openAdminDialog(mode, a) {
+    S.adminMode = { mode: mode, username: a && a.username };
+    showErr('aeErr', '');
+    var add = mode === 'add';
+    $('aeTitle').textContent = add ? '新增管理員' : '重設 ' + a.username + ' 的密碼';
+    ['aeUserWrap', 'aeNameWrap', 'aeRoleWrap'].forEach(function (id) { $(id).classList.toggle('hidden', !add); });
+    $('aePwLabel').textContent = add ? '初始密碼' : '新的暫時密碼';
+    $('aeSave').textContent = add ? '建立' : '重設密碼';
+    $('aeUser').value = ''; $('aeName').value = ''; $('aeRole').value = 'admin';
+    $('aePw').value = genPw();
+    $('dlgAdmin').showModal();
+  }
+
+  $('adminEdit').addEventListener('submit', function (e) {
+    e.preventDefault();
+    showErr('aeErr', '');
+    var m = S.adminMode, btn = $('aeSave'), pw = $('aePw').value;
+    var p = m.mode === 'add'
+      ? api('addAdmin', S.token, { username: $('aeUser').value, displayName: $('aeName').value, role: $('aeRole').value, password: pw })
+      : api('resetAdminPassword', S.token, m.username, pw);
+    var who = m.mode === 'add' ? $('aeUser').value.trim().toLowerCase() : m.username;
+    busy(btn, true, '儲存中');
+    p.then(function (l) {
+      S.admins = l; renderAdmins();
+      $('dlgAdmin').close();
+      copy('帳號：' + who + '\n密碼：' + pw);
+      toast((m.mode === 'add' ? '已建立 ' : '已重設 ') + who + '，帳號密碼已複製，請私訊給對方');
+    }).catch(function (e) { showErr('aeErr', e.message); })
+      .finally(function () { busy(btn, false); });
+  });
+
+  function copy(text) {
+    try { navigator.clipboard.writeText(text); } catch (e) {}
+  }
+
+  /* ---------------- 紀錄 ---------------- */
+  function loadLogs() {
+    $('logRows').innerHTML = '<div class="muted"><span class="spin"></span> 載入中…</div>';
+    return api('getLogs', S.token).then(function (l) {
+      $('logRows').innerHTML = l.length ? l.map(function (x) {
+        return '<div class="small muted">' + esc(x.time) + '</div><div class="small">' + esc(x.who) + '</div><div>' + esc(x.what) + '</div>';
+      }).join('') : '<div class="muted">還沒有紀錄</div>';
+    }).catch(function (e) { $('logRows').innerHTML = '<div>' + esc(e.message) + '</div>'; });
+  }
+  $('btnReloadLogs').addEventListener('click', loadLogs);
+
+  /* ---------------- 啟動 ---------------- */
+  var saved = store.get();
+  if (saved) {
+    S.token = saved;
+    api('whoAmI', saved).then(function (me) { S.me = me; enter(); }).catch(function () { setToken(null); show('vLogin'); });
+  } else {
+    show('vLogin');
+    api('appStatus').then(function (s) {
+      if (!s.initialized) showErr('loginErr', '還沒有建立最高管理員。請照 README「第一次設定」在 Apps Script 編輯器執行 setupOwner。');
+    }).catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
