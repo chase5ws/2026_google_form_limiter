@@ -19,6 +19,7 @@ lib/limiter.js       規則判斷、排位、寄通知、每分鐘排程
 lib/mailer.js        寄信（SMTP 或 Resend）
 lib/db.js            SQLite 資料表
 lib/security.js      密碼雜湊、加密
+lib/runtime.js       自動偵測 Volume、產生金鑰、網頁上的設定
 public/index.html    網頁介面
 railway.json         Railway 設定（啟動指令、健康檢查、30 秒緩衝）
 test/platform/       平台測試（模擬 Google API）
@@ -27,48 +28,56 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 
 ---
 
-## 一、Google Cloud 設定（約 10 分鐘，只做一次）
+## 一、Railway 部署（只要點兩個地方）
 
-用**平台的 Google 帳號**操作，也就是組織要共用資料夾給它的那個帳號，例如 chase5ws@gmail.com。
+1. Railway → New Project → **Deploy from GitHub repo** → 選 `chase5ws/2026_google_form_limiter`。Railway 會自動讀取最外層的 `package.json` 和 `railway.json`，什麼都不用設定。
+2. **Settings → Networking → Generate Domain**，拿到 `xxxx.up.railway.app`。
+3. **掛 Volume**：在服務上按右鍵 → **Attach Volume**，掛載路徑填 `/data`。
 
-1. 到 <https://console.cloud.google.com/projectcreate> 建立新專案，例如「form-limiter」。
-2. 啟用兩個 API：
-   - <https://console.cloud.google.com/apis/library/forms.googleapis.com> →「啟用」
-   - <https://console.cloud.google.com/apis/library/drive.googleapis.com> →「啟用」
-3. 設定 OAuth 同意畫面：<https://console.cloud.google.com/auth/overview>
-   - 「品牌」：填應用程式名稱（例如「表單限額管理平台」）和支援 Email。
-   - 「目標對象」：選 **外部**。
-   - **按「發布應用程式」，改成「實際運作中」**。如果停在「測試中」，Google 授權每 7 天就會失效。不用送審，只有你自己的帳號會登入。
-4. 建立 OAuth 用戶端：<https://console.cloud.google.com/auth/clients> →「建立用戶端」
-   - 應用程式類型：**網頁應用程式**
-   - 已授權的重新導向 URI：`https://你的網域/oauth/google/callback`，網域在第二部分第 3 步取得，可以先空著，回來再填。
-   - 建立後複製 **用戶端 ID** 和 **用戶端密鑰**。
+就這樣，**不用設定任何環境變數**：
 
-## 二、Railway 部署
+| 原本要手動設的 | 現在 |
+|---|---|
+| `DATA_DIR` | 自動讀取 Railway 提供的 Volume 掛載路徑 |
+| `ENCRYPTION_KEY` | 第一次啟動自動產生，存在 Volume 裡的 `.encryption-key` |
+| `APP_URL` | 自動讀取 Railway 網域 |
+| Google 用戶端 ID／密鑰 | 在網頁「平台設定」填，加密存放、不用重新部署 |
+| 寄信（Resend／SMTP） | 在網頁「平台設定」填，加密存放、不用重新部署 |
 
-1. Railway → New Project → **Deploy from GitHub repo** → 選 `chase5ws/2026_google_form_limiter`。
-2. 不用設定 Root Directory，Railway 會自動讀取最外層的 `package.json` 和 `railway.json`。
-3. **Settings → Networking → Generate Domain**，會拿到 `xxxx.up.railway.app`。把 `https://xxxx.up.railway.app/oauth/google/callback` 填回第一部分第 4 步的重新導向 URI。
-4. **新增 Volume**：在服務上按右鍵 → Attach Volume，掛載路徑填 `/data`。
-   > 沒掛 Volume 的話，每次部署所有資料都會消失。
-5. **Variables** 加入：
+> 想用指令完成第 2、3 步也可以（要先 `npx @railway/cli login` 並在 repo 資料夾執行 `npx @railway/cli link`）：
+> ```bash
+> npx @railway/cli volume add --mount-path /data
+> npx @railway/cli domain
+> ```
 
-   | 變數 | 值 |
-   |---|---|
-   | `DATA_DIR` | `/data` |
-   | `GOOGLE_CLIENT_ID` | 第一部分複製的用戶端 ID |
-   | `GOOGLE_CLIENT_SECRET` | 用戶端密鑰 |
-   | `ENCRYPTION_KEY` | 隨機長字串，在終端機執行 `openssl rand -base64 32` 產生。用來加密存放 Google 授權，**設定後不要改**，改了要重新連接 Google |
-   | `APP_URL` | 選填。預設會用 Railway 網域；綁自訂網域時才要填，例如 `https://forms.example.com` |
-   | `CHECK_INTERVAL_SECONDS` | 選填，預設 `60` |
-   | `DRIVE_FOLDER_NAME` | 選填，組織共用資料夾必須取的名稱，預設 `表單限額平台`。也可以之後在「平台設定」改 |
-   | **寄信（二選一）** | |
-   | `RESEND_API_KEY` + `MAIL_FROM` | **Hobby 方案用這個。** 到 <https://resend.com> 註冊、驗證你的網域，拿 API Key。`MAIL_FROM` 例如 `表單平台 <noreply@你的網域>` |
-   | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | **只有 Railway Pro 以上能用**。例如 Gmail：`smtp.gmail.com`、`465`、你的 Gmail、[應用程式密碼](https://myaccount.google.com/apppasswords) |
+## 二、打開網站，照「平台設定」的清單做
 
-6. 部署完成後打開網域，就能看到登入頁。
+1. 打開網域，用預設帳號 **`chase5ws` / `chase5ws`** 登入，改成自己的密碼。
+2. 登入後會直接進到 **平台設定**，最上面的「設定進度」會列出還沒完成的項目，並偵測網域和 Volume 有沒有設定好。
+3. **Google OAuth 用戶端**：照頁面上的 3 個連結到 Google Cloud 操作（用平台的 Google 帳號，例如 chase5ws@gmail.com）：
+   1. 建立專案，啟用 Forms API 和 Drive API。
+   2. OAuth 同意畫面：目標對象選「外部」，**按「發布應用程式」**。停在「測試中」的話，授權每 7 天就會失效。不用送審。
+   3. 建立用戶端，類型選「網頁應用程式」。「已授權的重新導向 URI」按頁面上的「複製」貼上，然後把用戶端 ID 和密鑰貼回平台，儲存。
+4. **連接 Google**：按「連接 Google」→ 看到未驗證的警告，點「進階 → 前往」→「允許」。
+5. **寄信**（要寄候補通知才需要）：
+   - Railway Hobby 方案 → 選 **Resend**，填寄件者和 API Key。網域要先在 [resend.com](https://resend.com/domains) 驗證。
+   - Pro 方案 → 也可以選 **SMTP**，例如 Gmail：`smtp.gmail.com`、`465`、你的 Gmail、[應用程式密碼](https://myaccount.google.com/apppasswords)。
+   - 儲存後寄一封測試信確認。
 
-**之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改 GAS 版或文件不會觸發。 資料存在 Volume，不受部署影響。
+### 進階：用環境變數覆蓋（選填）
+有設定的話會優先使用，網頁上就不能改。
+
+| 變數 | 用途 |
+|---|---|
+| `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | Google 用戶端 |
+| `RESEND_API_KEY` `MAIL_FROM` 或 `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | 寄信 |
+| `ENCRYPTION_KEY` | 自訂加密金鑰（設定後不要改，改了要重新連接 Google、重填寄信設定） |
+| `DATA_DIR` | 自訂資料位置 |
+| `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
+| `CHECK_INTERVAL_SECONDS` | 檢查間隔，預設 `60` |
+| `DRIVE_FOLDER_NAME` | 組織共用資料夾名稱，預設 `表單限額平台`，也可以在網頁改 |
+
+**之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改 GAS 版或文件不會觸發。資料存在 Volume，不受部署影響。
 
 ### 部署緩衝（30 秒）
 `railway.json` 已設定 `drainingSeconds: 30`：部署新版時，舊版先收到 SIGTERM，30 秒後才會被強制關閉。這段時間舊版會：
@@ -78,16 +87,12 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 
 如果 Railway 後台的 Settings → Deploy 有另外設定 Draining Seconds，以後台為準，記得也設成 30。
 
-## 三、開始使用
+## 三、日常使用
 
 ### 平台管理員（你）
-1. 用預設帳號 **`chase5ws` / `chase5ws`** 登入，系統會要求你立刻改密碼。
-2. **平台設定 → 連接 Google** → 用平台的 Google 帳號登入。
-   - 會看到「Google 尚未驗證這個應用程式」，點「進階 → 前往（不安全）」→ 允許。
-   - 在同一頁確認「組織共用資料夾名稱」，預設是「表單限額平台」，可以改成你要的名稱。
-   - 設好寄信的環境變數後，在「寄信」區塊寄一封測試信確認。
-3. **所有組織 → 建立組織**：填組織名稱和第一位組織管理員。帳密會自動複製到剪貼簿，私訊給對方。
-4. 上方「管理組織」下拉選單可以切換到任一組織，替他們處理表單或帳號。
+1. 完成上面「平台設定」的清單。在同一頁確認「組織共用資料夾名稱」，預設是「表單限額平台」，可以改成你要的名稱。
+2. **所有組織 → 建立組織**：填組織名稱和第一位組織管理員。帳密會自動複製到剪貼簿，私訊給對方。
+3. 上方「管理組織」下拉選單可以切換到任一組織，替他們處理表單或帳號。
 
 ### 組織管理員
 1. 用你給的帳密登入，改成自己的密碼。
@@ -121,7 +126,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 
 ## 安全設計
 
-- 密碼用 scrypt 雜湊，Google 授權用 AES-256-GCM 加密後存放。
+- 密碼用 scrypt 雜湊。Google 授權、用戶端密鑰、寄信密碼都用 AES-256-GCM 加密後存放，金鑰存在 Volume 的 `.encryption-key`（權限 600）或環境變數 `ENCRYPTION_KEY`。
 - Session 存在 HttpOnly Cookie，12 小時沒有動作就失效。改密碼、被停用或被重設密碼時，舊的登入會立即失效。
 - 寫入類 API 都要帶自訂標頭，用來防 CSRF。同一帳號連續登入失敗 5 次，會鎖 15 分鐘。
 - 組織之間完全隔離：每個 API 都會檢查目前使用者屬於哪個組織。

@@ -1,0 +1,116 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const { resolveDataDir, resolveKey, createSettings } = require('../../lib/runtime');
+const { open } = require('../../lib/db');
+const { cipher } = require('../../lib/security');
+const { createGoogle } = require('../../lib/google');
+const { createMailer } = require('../../lib/mailer');
+const { createLimiter } = require('../../lib/limiter');
+const { createApp } = require('../../lib/app');
+
+test('資料夾：DATA_DIR > Railway Volume > ./data', () => {
+  assert.deepStrictEqual(resolveDataDir({}).dir, './data');
+  const v = resolveDataDir({ RAILWAY_PROJECT_ID: 'p', RAILWAY_VOLUME_MOUNT_PATH: '/data' });
+  assert.strictEqual(v.dir, '/data'); assert.strictEqual(v.source, 'volume'); assert.ok(v.volumeMounted);
+  const nv = resolveDataDir({ RAILWAY_PROJECT_ID: 'p' });
+  assert.ok(nv.onRailway && !nv.volumeMounted);
+  assert.strictEqual(resolveDataDir({ DATA_DIR: '/x', RAILWAY_VOLUME_MOUNT_PATH: '/data' }).dir, '/x');
+});
+
+test('加密金鑰：自動產生、權限 600、重啟後沿用；環境變數優先', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gfl-key-'));
+  const a = resolveKey({}, dir);
+  assert.ok(a.created && a.key.length > 40);
+  assert.strictEqual(fs.statSync(a.file).mode & 0o777, 0o600);
+  const b = resolveKey({}, dir);
+  assert.strictEqual(b.key, a.key);
+  assert.ok(!b.created);
+  assert.strictEqual(resolveKey({ ENCRYPTION_KEY: 'zzz' }, dir).key, 'zzz');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('網頁設定：Google 用戶端與寄信加密存放；環境變數優先且不可在網頁改', () => {
+  const db = open(':memory:');
+  const box = cipher('k');
+  const s = createSettings({ env: {}, db, cipher: box });
+  assert.strictEqual(s.googleClient().source, null);
+  assert.throws(() => s.setGoogleClient({ clientId: 'abc', clientSecret: 'x' }), /apps\.googleusercontent\.com/);
+  s.setGoogleClient({ clientId: '123-abc.apps.googleusercontent.com', clientSecret: 'GOCSPX-secret' });
+  assert.deepStrictEqual(s.googleClient(), { clientId: '123-abc.apps.googleusercontent.com', clientSecret: 'GOCSPX-secret', source: 'web' });
+  assert.ok(!db.getSetting('cfg_google_client_secret').includes('GOCSPX'), '密鑰有加密');
+  // 只改 ID 不給密鑰 → 必須重新輸入密鑰
+  assert.throws(() => s.setGoogleClient({ clientId: '999-x.apps.googleusercontent.com' }), /用戶端密鑰/);
+  // 同一個 ID 不給密鑰 → 保留原密鑰
+  s.setGoogleClient({ clientId: '123-abc.apps.googleusercontent.com' });
+  assert.strictEqual(s.googleClient().clientSecret, 'GOCSPX-secret');
+
+  assert.throws(() => s.setMail({ provider: 'resend', from: 'a@b.c', resendKey: 'bad' }), /re_/);
+  s.setMail({ provider: 'resend', from: '平台 <noreply@ex.com>', resendKey: 're_abc123' });
+  assert.deepStrictEqual(s.mailEnv(), { RESEND_API_KEY: 're_abc123', MAIL_FROM: '平台 <noreply@ex.com>' });
+  assert.ok(!db.getSetting('cfg_mail').includes('re_abc123'), '寄信金鑰有加密');
+  assert.strictEqual(s.mailView().hasSecret, true);
+  assert.ok(!JSON.stringify(s.mailView()).includes('re_abc123'), '網頁看不到金鑰');
+  s.setMail({ provider: 'resend', from: 'x@ex.com' }); // 不重填金鑰 → 沿用
+  assert.strictEqual(s.mailEnv().RESEND_API_KEY, 're_abc123');
+  s.setMail({ provider: 'smtp', from: 'bot@gmail.com', host: 'smtp.gmail.com', port: 465, user: 'bot@gmail.com', pass: 'app-pass' });
+  assert.deepStrictEqual(s.mailEnv(), { SMTP_HOST: 'smtp.gmail.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_USER: 'bot@gmail.com', SMTP_PASS: 'app-pass', MAIL_FROM: 'bot@gmail.com' });
+
+  const e = createSettings({ env: { GOOGLE_CLIENT_ID: 'env.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 's', RESEND_API_KEY: 're_env', MAIL_FROM: 'e@x.com' }, db, cipher: box });
+  assert.strictEqual(e.googleClient().source, 'env');
+  assert.throws(() => e.setGoogleClient({ clientId: '1-a.apps.googleusercontent.com', clientSecret: 'x' }), /環境變數/);
+  assert.strictEqual(e.mailEnv().RESEND_API_KEY, 're_env');
+  assert.throws(() => e.setMail({ provider: 'none' }), /環境變數/);
+});
+
+test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端會中斷 Google', async () => {
+  const db = open(':memory:');
+  const box = cipher('k');
+  const settings = createSettings({ env: {}, db, cipher: box });
+  const google = createGoogle({ getClient: () => settings.googleClient(), redirectUri: 'https://app.example.com/oauth/google/callback', db, cipher: box });
+  const mailer = createMailer(() => settings.mailEnv());
+  const limiter = createLimiter({ db, google, mailer, log: { error() {} } });
+  const handle = createApp({ db, google, limiter, mailer, settings,
+    runtime: { appUrl: 'https://app.example.com', redirectUri: 'https://app.example.com/oauth/google/callback', onRailway: true, volumeMounted: false, keySource: 'auto' },
+    config: { appUrl: 'https://app.example.com' } });
+  const server = http.createServer(handle);
+  await new Promise(r => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie = '';
+  const call = async (method, p, body) => {
+    const res = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'limiter', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
+    const sc = res.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    return { status: res.status, data: await res.json() };
+  };
+  try {
+    await call('POST', '/api/login', { username: 'chase5ws', password: 'chase5ws' });
+    await call('POST', '/api/password', { oldPassword: 'chase5ws', newPassword: 'Setup2026x' });
+    let r = await call('GET', '/api/setup');
+    assert.strictEqual(r.data.runtime.redirectUri, 'https://app.example.com/oauth/google/callback');
+    const ok = Object.fromEntries(r.data.checks.map(c => [c.key, c.ok]));
+    assert.deepStrictEqual(ok, { domain: true, volume: false, client: false, connect: false, mail: false });
+    assert.strictEqual(r.data.done, false);
+    assert.strictEqual((await call('POST', '/api/google/connect')).status, 503);
+
+    r = await call('PUT', '/api/setup/google', { clientId: '42-x.apps.googleusercontent.com', clientSecret: 'GOCSPX-1' });
+    assert.strictEqual(r.data.checks.find(c => c.key === 'client').ok, true);
+    const url = new URL((await call('POST', '/api/google/connect')).data.url);
+    assert.strictEqual(url.searchParams.get('client_id'), '42-x.apps.googleusercontent.com', '不用重新部署就生效');
+    assert.strictEqual(url.searchParams.get('redirect_uri'), 'https://app.example.com/oauth/google/callback');
+
+    db.setSetting('google_refresh_token', box.encrypt('rt'));
+    r = await call('PUT', '/api/setup/google', { clientId: '43-y.apps.googleusercontent.com', clientSecret: 'GOCSPX-2' });
+    assert.strictEqual(r.data.google.connected, false, '換用戶端後要重新連接');
+
+    r = await call('PUT', '/api/setup/mail', { provider: 'resend', from: 'noreply@ex.com', resendKey: 're_live' });
+    assert.strictEqual(r.data.checks.find(c => c.key === 'mail').ok, true);
+    assert.strictEqual(mailer.provider, 'resend');
+    assert.ok(!JSON.stringify(r.data).includes('re_live'));
+    const me = (await call('GET', '/api/me')).data;
+    assert.strictEqual(me.mail.enabled, true);
+  } finally { server.close(); }
+});

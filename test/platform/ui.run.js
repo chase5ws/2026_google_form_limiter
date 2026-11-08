@@ -7,6 +7,9 @@ const { open } = require('../../lib/db');
 const { createLimiter } = require('../../lib/limiter');
 const { createApp } = require('../../lib/app');
 const { createFakeGoogle } = require('./fake-google');
+const { createSettings } = require('../../lib/runtime');
+const { createMailer } = require('../../lib/mailer');
+const { cipher } = require('../../lib/security');
 
 const OUT = process.argv[2] || path.join(__dirname, 'shots');
 fs.mkdirSync(OUT, { recursive: true });
@@ -15,9 +18,16 @@ fs.mkdirSync(OUT, { recursive: true });
   const db = open(':memory:');
   const google = createFakeGoogle();
   const sent = [];
-  const mailer = { provider: 'smtp', from: '表單平台 <noreply@example.com>', enabled: () => true, async send(m) { sent.push(m); } };
+  const settings = createSettings({ env: {}, db, cipher: cipher('ui') });
+  const mailer = createMailer(() => settings.mailEnv(), { fetchImpl: async (url, opt) => { const b = JSON.parse(opt.body); sent.push({ to: b.to[0], subject: b.subject }); return { ok: true, json: async () => ({}) }; } });
   const limiter = createLimiter({ db, google, mailer, log: { error() {} } });
-  const server = http.createServer(createApp({ db, google, limiter, mailer, config: { appUrl: 'http://localhost' } }));
+  let gcSet = false;
+  google.configured = () => gcSet;
+  const origSet = settings.setGoogleClient.bind(settings);
+  settings.setGoogleClient = (b) => { const r = origSet(b); gcSet = true; return r; };
+  const server = http.createServer(createApp({ db, google, limiter, mailer, settings,
+    runtime: { appUrl: 'https://forms.up.railway.app', redirectUri: 'https://forms.up.railway.app/oauth/google/callback', onRailway: true, volumeMounted: true, dataDir: '/data', dataSource: 'volume', keySource: 'auto', domainFromRailway: true },
+    config: { appUrl: 'http://localhost' } }));
   await new Promise(r => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const F1 = '1FormAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', F2 = '1FormBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
@@ -47,13 +57,25 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.click('#cpBtn');
   await page.waitForSelector('#pOrgs:not(.hidden)');
 
-  step('平台設定：連接 Google');
-  await page.click('[data-tab=settings]');
+  step('平台設定：設定 Google 用戶端 → 連接 Google → 設定寄信');
+  await page.waitForSelector('#pSettings:not(.hidden)');
+  await page.waitForSelector('#checkList li');
+  await page.waitForTimeout(300);
+  await shot('r00-setup-start');
+  await page.fill('#gcId', '123456-abc.apps.googleusercontent.com');
+  await page.fill('#gcSecret', 'GOCSPX-test');
+  await page.click('#gcSave');
   await page.waitForSelector('#btnGConnect:not([disabled])');
   await page.click('#btnGConnect');
   await page.waitForFunction(() => document.getElementById('gStatus').textContent.includes('已連接'));
+  await page.selectOption('#mProvider', 'resend');
+  await page.fill('#mFrom', '表單平台 <noreply@example.com>');
+  await page.fill('#mResend', 're_test123');
+  await page.click('#mSave');
+  await page.waitForFunction(() => document.getElementById('mStatus').textContent.includes('Resend'));
   await page.waitForTimeout(3000);
   await shot('r01-settings');
+  const banner = await page.isVisible('#setupBanner');
 
   step('建立兩個組織');
   await page.click('[data-tab=orgs]');
@@ -145,6 +167,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
   await browser.close(); server.close();
   console.log('組織管理員看到的分頁：', tabs.join('、'));
+  console.log('設定完成後提示列還在嗎：', banner ? '是（錯誤）' : '否');
   console.log('寄出的信：', sent.map(m => m.to + '｜' + m.subject).join(' / '));
   console.log(errors.length ? 'PAGE ERRORS: ' + errors.join(' | ') : '沒有前端錯誤');
   console.log('手機橫向捲動：', overflow ? '有' : '沒有');

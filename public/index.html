@@ -106,6 +106,16 @@
   .chk input { width: 18px; height: 18px; }
   fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 2px; margin: 4px 0 14px; }
   legend { font-size: 13px; color: var(--muted); padding: 0 6px; }
+  .checks { list-style: none; margin: 0; padding: 0; }
+  .checks li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .checks li:last-child { border-bottom: 0; }
+  .checks .ic { width: 22px; height: 22px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: #eef0f3; color: var(--muted); }
+  .checks .ok .ic { background: var(--ok-weak); color: var(--ok); }
+  .checks .opt .ic { background: #f4f5f7; }
+  .copyrow { display: flex; gap: 6px; }
+  .copyrow input { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: #f7f8fa; }
+  .banner { background: var(--warn-weak); color: var(--warn); border-bottom: 1px solid #f3dcb8; font-size: 14px; }
+  .banner > div { max-width: 1080px; margin: 0 auto; padding: 8px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .gcard { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .gdot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
   .gdot.on { background: var(--ok); }
@@ -172,6 +182,7 @@
     </div>
     <nav class="tabs" id="tabs"></nav>
   </header>
+  <div class="banner hidden" id="setupBanner"><div><span id="setupBannerText"></span><button class="btn sm" id="setupBannerBtn">前往平台設定</button></div></div>
   <main>
     <!-- 表單 -->
     <div id="pForms" class="panel">
@@ -229,7 +240,29 @@
 
     <!-- 平台設定 -->
     <div id="pSettings" class="panel hidden">
-      <div class="section-head"><h2>Google 帳號</h2></div>
+      <div class="section-head"><h2>設定進度</h2><span class="small muted" id="setupDone"></span></div>
+      <div class="card"><ul class="checks" id="checkList"></ul><div class="hint" id="runtimeInfo" style="margin-top:8px"></div></div>
+
+      <div class="section-head" style="margin-top:22px"><h2>Google OAuth 用戶端</h2></div>
+      <div class="card">
+        <ol class="steps">
+          <li>到 Google Cloud <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">建立專案</a>，啟用 <a href="https://console.cloud.google.com/apis/library/forms.googleapis.com" target="_blank" rel="noopener">Forms API</a> 和 <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener">Drive API</a>。</li>
+          <li><a href="https://console.cloud.google.com/auth/overview" target="_blank" rel="noopener">OAuth 同意畫面</a>：目標對象選「外部」，然後按<b>「發布應用程式」</b>（不然授權 7 天就失效）。</li>
+          <li><a href="https://console.cloud.google.com/auth/clients" target="_blank" rel="noopener">建立用戶端</a>：類型選「網頁應用程式」，「已授權的重新導向 URI」貼上這個網址：</li>
+        </ol>
+        <div class="copyrow" style="margin-bottom:14px"><input type="text" id="redirectUri" readonly><button type="button" class="btn" id="copyRedirect">複製</button></div>
+        <div id="gcEnvNote" class="note ok hidden">用戶端由 Railway 環境變數設定（GOOGLE_CLIENT_ID）。要改請到 Railway 修改。</div>
+        <form id="gcForm">
+          <div class="grid2">
+            <label class="field"><span>用戶端 ID</span><input type="text" id="gcId" placeholder="……apps.googleusercontent.com" autocomplete="off"></label>
+            <label class="field"><span>用戶端密鑰</span><input type="password" id="gcSecret" placeholder="GOCSPX-……" autocomplete="new-password"></label>
+          </div>
+          <button class="btn primary" id="gcSave">儲存用戶端</button>
+          <span class="hint" style="margin-left:8px">加密存放，不用重新部署。</span>
+        </form>
+      </div>
+
+      <div class="section-head" style="margin-top:22px"><h2>Google 帳號</h2></div>
       <div class="card">
         <div class="gcard">
           <span class="gdot" id="gDot"></span>
@@ -247,11 +280,29 @@
         <form id="fnameForm" class="row"><input type="text" class="grow" id="fnameInput" maxlength="100" required><button class="btn" id="fnameBtn">儲存</button></form>
         <div class="hint">組織要把這個名稱的資料夾共用給你，系統才會接受。改名只影響之後新連結的資料夾。</div>
       </div>
-      <div class="section-head" style="margin-top:22px"><h2>寄信</h2></div>
+      <div class="section-head" style="margin-top:22px"><h2>寄信</h2><span class="small muted">寄候補通知才需要</span></div>
       <div class="card">
-        <div class="gcard"><span class="gdot" id="mDot"></span><div style="flex:1;min-width:200px"><b id="mStatus"></b><div class="small muted" id="mSub"></div></div></div>
-        <form id="mailTestForm" class="row" style="margin-top:12px"><input type="email" class="grow" id="mailTo" placeholder="收件 Email" required><button class="btn" id="mailTestBtn">寄測試信</button></form>
-        <div class="hint">Railway 的 Free、Trial、Hobby 方案會封鎖 SMTP，請改用 Resend（設定 <code>RESEND_API_KEY</code>）；Pro 方案可以用 SMTP。</div>
+        <div class="gcard" style="margin-bottom:12px"><span class="gdot" id="mDot"></span><div style="flex:1;min-width:200px"><b id="mStatus"></b><div class="small muted" id="mSub"></div></div></div>
+        <div id="mailEnvNote" class="note ok hidden">寄信由 Railway 環境變數設定。要改請到 Railway 修改。</div>
+        <form id="mailForm">
+          <label class="field"><span>寄信方式</span>
+            <select id="mProvider">
+              <option value="none">不寄信</option>
+              <option value="resend">Resend（Railway Hobby 方案用這個）</option>
+              <option value="smtp">SMTP（Railway Pro 以上才能用）</option>
+            </select></label>
+          <label class="field mfield" data-for="resend smtp"><span>寄件者</span><input type="text" id="mFrom" placeholder="表單平台 <noreply@你的網域>">
+            <div class="hint">Resend 要先在 <a href="https://resend.com/domains" target="_blank" rel="noopener">resend.com</a> 驗證網域；Gmail SMTP 請填你的 Gmail。</div></label>
+          <label class="field mfield" data-for="resend"><span>Resend API Key</span><input type="password" id="mResend" placeholder="re_……" autocomplete="new-password"></label>
+          <div class="grid2 mfield" data-for="smtp">
+            <label class="field"><span>SMTP 主機</span><input type="text" id="mHost" placeholder="smtp.gmail.com"></label>
+            <label class="field"><span>連接埠</span><input type="number" id="mPort" placeholder="465"></label>
+            <label class="field"><span>帳號</span><input type="text" id="mUser" placeholder="you@gmail.com" autocomplete="off"></label>
+            <label class="field"><span>密碼</span><input type="password" id="mPass" placeholder="Gmail 請用應用程式密碼" autocomplete="new-password"></label>
+          </div>
+          <button class="btn primary" id="mSave">儲存寄信設定</button>
+        </form>
+        <form id="mailTestForm" class="row" style="margin-top:14px"><input type="email" class="grow" id="mailTo" placeholder="收件 Email" required><button class="btn" id="mailTestBtn">寄測試信</button></form>
       </div>
       <div class="section-head" style="margin-top:22px"><h2>平台管理員</h2><div class="right"><button class="btn sm primary" id="btnAddSuper">新增平台管理員</button></div></div>
       <div class="card tbl-wrap"><table><thead><tr><th>帳號</th><th>顯示名稱</th><th>Email</th><th>最後登入</th><th></th></tr></thead><tbody id="superRows"></tbody></table></div>
@@ -426,6 +477,7 @@
           S.orgId = orgs.some(function (o) { return o.id === saved; }) ? saved : (orgs[0] ? orgs[0].id : null);
         } else S.orgId = S.me.orgId;
         renderOrgPicker(); renderTabs();
+        if (isSuper()) GET('/api/setup').then(function (st) { S.setup = st; renderSetupBanner(); if (!st.done && S.tab !== 'settings' && !S.orgs.length) go('settings'); }).catch(function () {});
         var h = location.hash;
         if (h.indexOf('#settings') === 0 && isSuper()) {
           var m = h.match(/google=([^&]*)/);
@@ -727,26 +779,85 @@
 
   /* ---------- 平台設定 ---------- */
   function loadSettings() {
-    return GET('/api/me').then(function (r) {
-      var g = r.google; S.google = g;
+    return Promise.all([GET('/api/me'), GET('/api/setup')]).then(function (res) {
+      var r = res[0], st = res[1], g = r.google; S.google = g; S.mail = r.mail || {}; S.setup = st;
+      renderSetupBanner();
+      // 設定進度
+      $('checkList').innerHTML = st.checks.map(function (c) {
+        return '<li class="' + (c.ok ? 'ok' : '') + (c.optional ? ' opt' : '') + '"><span class="ic">' + (c.ok ? '✓' : '·') + '</span><div><b>' + esc(c.title) + '</b>' +
+          (c.ok ? '' : '<div class="small muted">' + esc(c.hint) + '</div>') + '</div></li>';
+      }).join('');
+      $('setupDone').textContent = st.done ? '必要設定都完成了 🎉' : '';
+      var rt = st.runtime;
+      $('runtimeInfo').textContent = '資料存放：' + (rt.dataDir || '') + (rt.dataSource === 'volume' ? '（自動偵測到 Railway Volume）' : '') +
+        '・加密金鑰：' + (rt.keySource === 'env' ? '環境變數' : '自動產生並存在資料夾') + '・網址：' + (rt.appUrl || '') + (rt.domainFromRailway ? '（自動偵測）' : '');
+      // Google 用戶端
+      $('redirectUri').value = rt.redirectUri || '';
+      var envGc = st.google.source === 'env';
+      $('gcEnvNote').classList.toggle('hidden', !envGc);
+      $('gcForm').classList.toggle('hidden', envGc);
+      $('gcId').value = st.google.clientId || '';
+      $('gcSecret').value = ''; $('gcSecret').placeholder = st.google.hasSecret ? '已設定，留空代表不變' : 'GOCSPX-……';
+      // Google 帳號
       $('gDot').classList.toggle('on', !!g.connected);
       $('gStatus').textContent = g.connected ? '已連接：' + g.email : '未連接';
-      $('gSub').textContent = !g.configured ? '伺服器還沒設定 GOOGLE_CLIENT_ID／GOOGLE_CLIENT_SECRET，請先照 README 設定環境變數。'
-        : g.connected ? '組織要把資料夾共用給這個帳號。' : '連接後組織才能加入表單。';
-      $('fnameInput').value = g.folderName || '';
-      var m = r.mail || {}; S.mail = m;
-      $('mDot').classList.toggle('on', !!m.enabled);
-      $('mStatus').textContent = m.enabled ? '可以寄信（' + (m.provider === 'resend' ? 'Resend' : 'SMTP') + '）' : '還沒設定寄信';
-      $('mSub').textContent = m.enabled ? '寄件者：' + (m.from || '') : '設定 RESEND_API_KEY 或 SMTP_HOST／SMTP_USER／SMTP_PASS，再加上 MAIL_FROM。';
+      $('gSub').textContent = !g.configured ? '請先在上方填好 Google OAuth 用戶端。' : g.connected ? '組織要把資料夾共用給這個帳號。' : '連接後組織才能加入表單。';
       $('btnGConnect').textContent = g.connected ? '重新連接' : '連接 Google';
       $('btnGConnect').disabled = !g.configured;
       $('btnGDisconnect').classList.toggle('hidden', !g.connected);
+      $('fnameInput').value = g.folderName || '';
+      // 寄信
+      var m = st.mail || {};
+      $('mDot').classList.toggle('on', !!S.mail.enabled);
+      $('mStatus').textContent = S.mail.enabled ? '可以寄信（' + (S.mail.provider === 'resend' ? 'Resend' : 'SMTP') + '）' : '還沒設定寄信';
+      $('mSub').textContent = S.mail.enabled ? '寄件者：' + (S.mail.from || '') : '選擇寄信方式並儲存。';
+      var envMail = m.source === 'env';
+      $('mailEnvNote').classList.toggle('hidden', !envMail);
+      $('mailForm').classList.toggle('hidden', envMail);
+      $('mProvider').value = m.provider || 'none';
+      $('mFrom').value = m.from || ''; $('mHost').value = m.host || ''; $('mPort').value = m.port || ''; $('mUser').value = m.user || '';
+      $('mResend').value = ''; $('mPass').value = '';
+      $('mResend').placeholder = m.hasSecret && m.provider === 'resend' ? '已設定，留空代表不變' : 're_……';
+      $('mPass').placeholder = m.hasSecret && m.provider === 'smtp' ? '已設定，留空代表不變' : 'Gmail 請用應用程式密碼';
+      toggleMailFields();
       return Promise.all([
         GET('/api/users?org=platform').then(function (l) { S.supers = l; $('superRows').innerHTML = userRows(l, 'platform'); }),
         loadLogs('platform', 'platformLogs')
       ]);
     });
   }
+  function toggleMailFields() {
+    var p = $('mProvider').value;
+    document.querySelectorAll('.mfield').forEach(function (el) { el.style.display = el.dataset.for.split(' ').indexOf(p) >= 0 ? '' : 'none'; });
+  }
+  $('mProvider').addEventListener('change', function () {
+    toggleMailFields();
+    if ($('mProvider').value === 'smtp' && !$('mHost').value) { $('mHost').value = 'smtp.gmail.com'; $('mPort').value = 465; }
+  });
+  $('copyRedirect').addEventListener('click', function () { copy($('redirectUri').value); toast('已複製重新導向網址'); });
+  $('gcForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('gcSave'), '儲存中', function () {
+      return api('PUT', '/api/setup/google', { clientId: $('gcId').value, clientSecret: $('gcSecret').value }).then(function () { toast('已儲存，接著按「連接 Google」'); return loadSettings(); });
+    });
+  });
+  $('mailForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('mSave'), '儲存中', function () {
+      return api('PUT', '/api/setup/mail', { provider: $('mProvider').value, from: $('mFrom').value, resendKey: $('mResend').value,
+        host: $('mHost').value, port: $('mPort').value, user: $('mUser').value, pass: $('mPass').value })
+        .then(function () { toast('已儲存寄信設定，可以寄一封測試信確認'); return loadSettings(); });
+    });
+  });
+  function renderSetupBanner() {
+    var st = S.setup;
+    if (!isSuper() || !st) { $('setupBanner').classList.add('hidden'); return; }
+    var vol = st.checks.filter(function (c) { return c.key === 'volume'; })[0];
+    var todo = st.checks.filter(function (c) { return !c.ok && !c.optional; });
+    $('setupBanner').classList.toggle('hidden', !todo.length);
+    $('setupBannerText').textContent = vol && !vol.ok ? '⚠️ 沒有偵測到 Railway Volume，資料會在下次部署時消失。' : '平台還有 ' + todo.length + ' 項設定沒完成：' + todo.map(function (c) { return c.title; }).join('、');
+  }
+  $('setupBannerBtn').addEventListener('click', function () { go('settings'); });
   $('fnameForm').addEventListener('submit', function (e) {
     e.preventDefault();
     run($('fnameBtn'), '', function () { return api('PUT', '/api/settings', { folderName: $('fnameInput').value }).then(function (r) { S.google.folderName = r.folderName; toast('已儲存資料夾名稱「' + r.folderName + '」'); }); });

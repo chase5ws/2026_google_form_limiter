@@ -6,26 +6,44 @@ const { createGoogle } = require('./lib/google');
 const { createLimiter } = require('./lib/limiter');
 const { createMailer } = require('./lib/mailer');
 const { createApp } = require('./lib/app');
+const { resolveDataDir, resolveKey, createSettings } = require('./lib/runtime');
 
 const env = process.env;
 const APP_URL = String(env.APP_URL || (env.RAILWAY_PUBLIC_DOMAIN ? `https://${env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${env.PORT || 3000}`)).replace(/\/$/, '');
-// Railway 的 drainingSeconds 預設設為 30：收到 SIGTERM 後最多 30 秒會被強制關閉，預留 3 秒給收尾
+// railway.json 設定 drainingSeconds: 30：收到 SIGTERM 後最多 30 秒會被強制關閉，預留 3 秒給收尾
 const DRAIN_MS = Math.max(5, Number(env.RAILWAY_DEPLOYMENT_DRAINING_SECONDS || 30) - 3) * 1000;
 
-if (!env.ENCRYPTION_KEY) console.warn('[警告] 沒有設定 ENCRYPTION_KEY，Google 授權會用空金鑰加密。正式環境請一定要設定。');
+// 自動偵測：資料夾（Railway Volume）與加密金鑰
+const data = resolveDataDir(env);
+const key = resolveKey(env, data.dir);
+if (data.onRailway && !data.volumeMounted) {
+  console.warn('[警告] 沒有偵測到 Railway Volume，資料會在每次部署時消失。請在 Railway 對服務按右鍵 → Attach Volume，掛載路徑填 /data。');
+}
+if (key.created) console.log(`已自動產生加密金鑰：${key.file}`);
 
-const db = open(env.DATA_DIR || './data');
+const db = open(data.dir);
+const box = cipher(key.key);
+const settings = createSettings({ env, db, cipher: box });
 const google = createGoogle({
-  clientId: env.GOOGLE_CLIENT_ID,
-  clientSecret: env.GOOGLE_CLIENT_SECRET,
+  getClient: () => settings.googleClient(),
   redirectUri: `${APP_URL}/oauth/google/callback`,
   db,
-  cipher: cipher(env.ENCRYPTION_KEY)
+  cipher: box
 });
-const mailer = createMailer(env);
+const mailer = createMailer(() => settings.mailEnv());
 const limiter = createLimiter({ db, google, mailer, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
 const handle = createApp({
-  db, google, limiter, mailer,
+  db, google, limiter, mailer, settings,
+  runtime: {
+    appUrl: APP_URL,
+    redirectUri: `${APP_URL}/oauth/google/callback`,
+    onRailway: data.onRailway,
+    volumeMounted: data.volumeMounted,
+    dataDir: data.dir,
+    dataSource: data.source,
+    keySource: key.source,
+    domainFromRailway: !env.APP_URL && !!env.RAILWAY_PUBLIC_DOMAIN
+  },
   config: {
     appUrl: APP_URL,
     defaultAdminUser: env.DEFAULT_ADMIN_USER,
@@ -37,14 +55,14 @@ const handle = createApp({
 let draining = false;
 const server = http.createServer((req, res) => {
   if (draining) {
-    // 部署切換中：不接新的寫入，避免做到一半被關掉
+    // 部署切換中：不接新的請求，避免做到一半被關掉
     res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Retry-After': '30', Connection: 'close' });
     return res.end(JSON.stringify({ error: '系統正在更新，請 30 秒後再試。' }));
   }
   handle(req, res);
 });
 server.listen(Number(env.PORT || 3000), () => {
-  console.log(`表單限額管理平台已啟動：${APP_URL}（寄信：${mailer.provider || '未設定'}）`);
+  console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}，寄信：${mailer.provider || '未設定'}）`);
   limiter.start();
 });
 
