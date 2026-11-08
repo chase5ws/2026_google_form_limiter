@@ -115,23 +115,27 @@ test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端�
   } finally { server.close(); }
 });
 
-test('忘記密碼：RESET_ADMIN_PASSWORD 重設一次、清除鎖定、舊登入失效，重啟不會再重設', () => {
+test('ADMIN_PASSWORD：直接登入不用改密碼、可以自己在網頁改、重啟不會蓋掉；換值會再套用（忘記密碼用）', () => {
   const db = open(':memory:');
   const google = { configured: () => false, connected: () => false, email: () => null };
-  const mk = (pw) => createApp({ db, google, limiter: {}, config: { appUrl: 'http://x', resetAdminPassword: pw } });
-  mk();
   const sec = require('../../lib/security');
-  db.run("UPDATE users SET password_hash = ?, must_change = 0 WHERE username = 'chase5ws'", sec.hashPassword('Forgotten99'));
+  const mk = (pw) => createApp({ db, google, limiter: {}, config: { appUrl: 'http://x', adminPassword: pw } });
+  const user = () => db.get("SELECT * FROM users WHERE username = 'chase5ws'");
+  mk('@Start5ws');
+  assert.ok(sec.verifyPassword('@Start5ws', user().password_hash));
+  assert.strictEqual(user().must_change, 0, '第一次登入不用改密碼');
+  assert.ok(!sec.verifyPassword('chase5ws', user().password_hash), '預設密碼不能用');
+  // 在網頁上自己改密碼
+  db.run("UPDATE users SET password_hash = ? WHERE username = 'chase5ws'", sec.hashPassword('MyOwn2026x'));
   db.run("INSERT INTO login_fails(username, count, until) VALUES ('chase5ws', 5, ?)", Date.now() + 9e5);
-  const ver = db.get("SELECT sess_ver FROM users WHERE username = 'chase5ws'").sess_ver;
+  const ver = user().sess_ver;
+  mk('@Start5ws');
+  assert.ok(sec.verifyPassword('MyOwn2026x', user().password_hash), '同一個值重啟不會蓋掉網頁上改的密碼');
+  assert.strictEqual(user().sess_ver, ver);
+  // 忘記密碼 → 換一個值
   mk('Rescue2026x');
-  let u = db.get("SELECT * FROM users WHERE username = 'chase5ws'");
-  assert.ok(sec.verifyPassword('Rescue2026x', u.password_hash));
-  assert.strictEqual(u.must_change, 1);
-  assert.strictEqual(u.sess_ver, ver + 1);
-  assert.strictEqual(db.get("SELECT COUNT(*) n FROM login_fails").n, 0);
-  db.run("UPDATE users SET password_hash = ?, must_change = 0 WHERE username = 'chase5ws'", sec.hashPassword('NewOwn2026'));
-  mk('Rescue2026x');
-  u = db.get("SELECT * FROM users WHERE username = 'chase5ws'");
-  assert.ok(sec.verifyPassword('NewOwn2026', u.password_hash), '同一個值重啟不會再重設');
+  assert.ok(sec.verifyPassword('Rescue2026x', user().password_hash));
+  assert.strictEqual(user().must_change, 0);
+  assert.strictEqual(user().sess_ver, ver + 1, '舊登入失效');
+  assert.strictEqual(db.get('SELECT COUNT(*) n FROM login_fails').n, 0, '鎖定解除');
 });

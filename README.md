@@ -52,7 +52,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 
 ## 二、打開網站，照「平台設定」的清單做
 
-1. 打開網域，用預設帳號 **`chase5ws` / `chase5ws`** 登入，改成自己的密碼。
+1. 打開網域登入：有設 `ADMIN_PASSWORD` 就用 `chase5ws` 和那組密碼直接登入；沒設的話用 **`chase5ws` / `chase5ws`**，第一次會要求改密碼。
 2. 登入後會直接進到 **平台設定**，最上面的「設定進度」會列出還沒完成的項目，並偵測網域和 Volume 有沒有設定好。
 3. **Google OAuth 用戶端**：照頁面上的 3 個連結到 Google Cloud 操作（用平台的 Google 帳號，例如 chase5ws@gmail.com）：
    1. 建立專案，啟用 Forms API 和 Drive API。
@@ -76,7 +76,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 | `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
 | `CHECK_INTERVAL_SECONDS` | 檢查間隔，預設 `60` |
 | `DRIVE_FOLDER_NAME` | 組織共用資料夾名稱，預設 `表單限額平台`，也可以在網頁改 |
-| `RESET_ADMIN_PASSWORD` | 忘記平台管理員密碼時用，見下方說明 |
+| `ADMIN_PASSWORD` | 平台管理員 `chase5ws` 的密碼，第一次登入不用改；忘記密碼時換一個值，見下方說明 |
 
 **之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改 GAS 版或文件不會觸發。資料存在 Volume，不受部署影響。
 
@@ -88,11 +88,14 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 
 如果 Railway 後台的 Settings → Deploy 有另外設定 Draining Seconds，以後台為準，記得也設成 30。
 
-### 忘記平台管理員密碼
-密碼是雜湊存放的，無法找回，只能重設：
-1. Railway → 服務 → **Variables** → 新增 `RESET_ADMIN_PASSWORD`，值填一組暫時密碼，例如 `Temp2026reset`。
-2. 等它自動重新部署完，用 `chase5ws` 和這組暫時密碼登入，系統會要你改成新密碼。所有已登入的裝置都會被登出，登入鎖定也會解除。
-3. 改好之後，**回 Railway 刪掉 `RESET_ADMIN_PASSWORD`**。同一個值只會套用一次，忘了刪也不會一直把密碼改回去，但留著不安全。
+### 平台管理員密碼（建議設定）
+在 Railway → 服務 → **Variables** 新增 `ADMIN_PASSWORD`，值填你的密碼：
+- `chase5ws` 直接用這組密碼登入，**第一次不用改密碼**。
+- 之後一樣可以在網頁右上角「改密碼」自己改。重啟或重新部署**不會**把它改回去，因為同一個值只會套用一次。
+- **忘記密碼時**：把 `ADMIN_PASSWORD` 改成另一個值，重新部署後就能用新的值登入。所有裝置會被登出，登入鎖定也會解除。
+- 密碼只存在 Railway，**不要寫進程式碼**，因為這個 repo 是公開的。
+
+沒設 `ADMIN_PASSWORD` 的話，預設帳密是 `chase5ws` / `chase5ws`，第一次登入會要求改密碼。
 
 組織的帳號忘記密碼：由組織管理員或平台管理員在「帳號」分頁按「重設密碼」。
 
