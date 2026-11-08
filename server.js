@@ -48,6 +48,7 @@ const handle = createApp({
     appUrl: APP_URL,
     defaultAdminUser: env.DEFAULT_ADMIN_USER,
     defaultAdminPassword: env.DEFAULT_ADMIN_PASSWORD,
+    resetAdminPassword: env.RESET_ADMIN_PASSWORD,
     folderName: env.DRIVE_FOLDER_NAME
   }
 });

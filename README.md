@@ -76,6 +76,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 | `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
 | `CHECK_INTERVAL_SECONDS` | 檢查間隔，預設 `60` |
 | `DRIVE_FOLDER_NAME` | 組織共用資料夾名稱，預設 `表單限額平台`，也可以在網頁改 |
+| `RESET_ADMIN_PASSWORD` | 忘記平台管理員密碼時用，見下方說明 |
 
 **之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改 GAS 版或文件不會觸發。資料存在 Volume，不受部署影響。
 
@@ -86,6 +87,14 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 3. 把 SQLite 的 WAL 寫回主檔，再關閉
 
 如果 Railway 後台的 Settings → Deploy 有另外設定 Draining Seconds，以後台為準，記得也設成 30。
+
+### 忘記平台管理員密碼
+密碼是雜湊存放的，無法找回，只能重設：
+1. Railway → 服務 → **Variables** → 新增 `RESET_ADMIN_PASSWORD`，值填一組暫時密碼，例如 `Temp2026reset`。
+2. 等它自動重新部署完，用 `chase5ws` 和這組暫時密碼登入，系統會要你改成新密碼。所有已登入的裝置都會被登出，登入鎖定也會解除。
+3. 改好之後，**回 Railway 刪掉 `RESET_ADMIN_PASSWORD`**。同一個值只會套用一次，忘了刪也不會一直把密碼改回去，但留著不安全。
+
+組織的帳號忘記密碼：由組織管理員或平台管理員在「帳號」分頁按「重設密碼」。
 
 ## 三、日常使用
 

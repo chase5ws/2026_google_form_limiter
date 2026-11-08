@@ -114,3 +114,24 @@ test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端�
     assert.strictEqual(me.mail.enabled, true);
   } finally { server.close(); }
 });
+
+test('忘記密碼：RESET_ADMIN_PASSWORD 重設一次、清除鎖定、舊登入失效，重啟不會再重設', () => {
+  const db = open(':memory:');
+  const google = { configured: () => false, connected: () => false, email: () => null };
+  const mk = (pw) => createApp({ db, google, limiter: {}, config: { appUrl: 'http://x', resetAdminPassword: pw } });
+  mk();
+  const sec = require('../../lib/security');
+  db.run("UPDATE users SET password_hash = ?, must_change = 0 WHERE username = 'chase5ws'", sec.hashPassword('Forgotten99'));
+  db.run("INSERT INTO login_fails(username, count, until) VALUES ('chase5ws', 5, ?)", Date.now() + 9e5);
+  const ver = db.get("SELECT sess_ver FROM users WHERE username = 'chase5ws'").sess_ver;
+  mk('Rescue2026x');
+  let u = db.get("SELECT * FROM users WHERE username = 'chase5ws'");
+  assert.ok(sec.verifyPassword('Rescue2026x', u.password_hash));
+  assert.strictEqual(u.must_change, 1);
+  assert.strictEqual(u.sess_ver, ver + 1);
+  assert.strictEqual(db.get("SELECT COUNT(*) n FROM login_fails").n, 0);
+  db.run("UPDATE users SET password_hash = ?, must_change = 0 WHERE username = 'chase5ws'", sec.hashPassword('NewOwn2026'));
+  mk('Rescue2026x');
+  u = db.get("SELECT * FROM users WHERE username = 'chase5ws'");
+  assert.ok(sec.verifyPassword('NewOwn2026', u.password_hash), '同一個值重啟不會再重設');
+});
