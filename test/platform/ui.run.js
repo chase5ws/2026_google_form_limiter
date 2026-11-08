@@ -3,9 +3,9 @@ const http = require('node:http');
 const path = require('node:path');
 const fs = require('node:fs');
 const { chromium } = require('playwright');
-const { open } = require('../lib/db');
-const { createLimiter } = require('../lib/limiter');
-const { createApp } = require('../lib/app');
+const { open } = require('../../lib/db');
+const { createLimiter } = require('../../lib/limiter');
+const { createApp } = require('../../lib/app');
 const { createFakeGoogle } = require('./fake-google');
 
 const OUT = process.argv[2] || path.join(__dirname, 'shots');

@@ -1,7 +1,7 @@
 'use strict';
 // 模擬 Google Drive / Forms API，介面跟 lib/google.js 一樣
-const { httpError } = require('../lib/security');
-const { FOLDER_MIME, FORM_MIME } = require('../lib/google');
+const { httpError } = require('../../lib/security');
+const { FOLDER_MIME, FORM_MIME } = require('../../lib/google');
 
 function createFakeGoogle() {
   const files = new Map();

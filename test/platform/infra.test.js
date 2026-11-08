@@ -6,9 +6,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
-const { createMailer } = require('../lib/mailer');
-const { open } = require('../lib/db');
-const { createLimiter } = require('../lib/limiter');
+const { createMailer } = require('../../lib/mailer');
+const { open } = require('../../lib/db');
+const { createLimiter } = require('../../lib/limiter');
 const { createFakeGoogle } = require('./fake-google');
 
 /** 極簡 SMTP 伺服器：記錄收到的指令與信件內容 */
@@ -90,7 +90,7 @@ test('limiter.stop 會等正在進行的檢查做完再回來', async () => {
 test('SIGTERM：伺服器收尾、寫回磁碟、資料在重啟後還在', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gfl-'));
   const port = 30000 + Math.floor(Math.random() * 20000);
-  const start = () => spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', 'server.js')], {
+  const start = () => spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(__dirname, '..', '..', 'server.js')], {
     env: Object.assign({}, process.env, { PORT: String(port), DATA_DIR: dir, ENCRYPTION_KEY: 'k', RAILWAY_DEPLOYMENT_DRAINING_SECONDS: '10' }),
     stdio: ['ignore', 'pipe', 'pipe']
   });

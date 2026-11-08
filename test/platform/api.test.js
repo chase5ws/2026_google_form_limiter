@@ -2,9 +2,9 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');
-const { open } = require('../lib/db');
-const { createLimiter } = require('../lib/limiter');
-const { createApp } = require('../lib/app');
+const { open } = require('../../lib/db');
+const { createLimiter } = require('../../lib/limiter');
+const { createApp } = require('../../lib/app');
 const { createFakeGoogle } = require('./fake-google');
 
 function fakeMailer() {
