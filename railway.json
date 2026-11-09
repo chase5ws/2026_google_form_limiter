@@ -7,11 +7,13 @@
       "/package-lock.json",
       "/railway.json",
       "/lib/**",
-      "/public/**"
-    ]
+      "/public/**",
+      "/Dockerfile"
+    ],
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "node --disable-warning=ExperimentalWarning server.js",
     "healthcheckPath": "/healthz",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE",

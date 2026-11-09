@@ -29,7 +29,7 @@ test/platform/       平台測試（模擬 Google API）
 
 ## 一、Railway 部署（只要點兩個地方）
 
-1. Railway → New Project → **Deploy from GitHub repo** → 選 `chase5ws/2026_google_form_limiter`。Railway 會自動讀取最外層的 `package.json` 和 `railway.json`，什麼都不用設定。
+1. Railway → New Project → **Deploy from GitHub repo** → 選 `chase5ws/2026_google_form_limiter`。Railway 會用最外層的 `Dockerfile`（官方 `node:22-alpine` 映像檔）建置，並讀取 `railway.json`，什麼都不用設定。
 2. **Settings → Networking → Generate Domain**，拿到 `xxxx.up.railway.app`。
 3. **掛 Volume**：在服務上按右鍵 → **Attach Volume**，掛載路徑填 `/data`。
 
