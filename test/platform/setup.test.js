@@ -139,3 +139,78 @@ test('ADMIN_PASSWORD：直接登入不用改密碼、可以自己在網頁改、
   assert.strictEqual(user().sess_ver, ver + 1, '舊登入失效');
   assert.strictEqual(db.get('SELECT COUNT(*) n FROM login_fails').n, 0, '鎖定解除');
 });
+
+test('每個組織用自己的寄信帳號；沒設定時用平台預設；成員不能看設定', async () => {
+  const db = open(':memory:');
+  const box = cipher('k');
+  const settings = createSettings({ env: {}, db, cipher: box });
+  const { createFakeGoogle } = require('./fake-google');
+  const google = createFakeGoogle(); google._connect();
+  const sent = [];
+  const fakeFetch = async (url, opt) => { const b = JSON.parse(opt.body); sent.push({ key: opt.headers.Authorization, from: b.from, to: b.to[0], subject: b.subject }); return { ok: true, json: async () => ({}) }; };
+  const platformMailer = Object.assign(createMailer(() => settings.mailEnv(), { fetchImpl: fakeFetch }), { source: 'platform' });
+  const mailerFor = (orgId) => {
+    const e = orgId ? settings.orgMailEnv(orgId) : {};
+    return e.MAIL_FROM ? Object.assign(createMailer(e, { fetchImpl: fakeFetch }), { source: 'org' }) : platformMailer;
+  };
+  const limiter = createLimiter({ db, google, mailerFor, log: { error() {} } });
+  const handle = createApp({ db, google, limiter, mailerFor, settings, config: { appUrl: 'http://x', adminPassword: 'Super2026x' } });
+  const server = http.createServer(handle);
+  await new Promise(r => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const client = () => { let cookie = ''; return async (method, p, body) => {
+    const res = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'limiter', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
+    const sc = res.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    return { status: res.status, data: await res.json() };
+  }; };
+  try {
+    const su = client();
+    await su('POST', '/api/login', { username: 'chase5ws', password: 'Super2026x' });
+    await su('POST', '/api/orgs', { name: '社大', admin: { username: 'org-a', password: 'OrgA2026xx' } });
+    const orgs = (await su('POST', '/api/orgs', { name: '校友會', admin: { username: 'org-b', password: 'OrgB2026xx' } })).data;
+    const [A, B] = orgs.map(o => o.id);
+    assert.strictEqual(orgs[0].mail.enabled, false, '平台和組織都沒設定');
+
+    // 平台預設
+    await su('PUT', '/api/setup/mail', { provider: 'resend', from: '平台 <noreply@platform.com>', resendKey: 're_platform' });
+    // 組織 A 自己的
+    const a = client();
+    await a('POST', '/api/login', { username: 'org-a', password: 'OrgA2026xx' });
+    await a('POST', '/api/password', { oldPassword: 'OrgA2026xx', newPassword: 'OrgAown2026' });
+    let r = await a('PUT', `/api/orgs/${A}/mail`, { provider: 'resend', from: '社大 <hi@school.org>', resendKey: 're_school' });
+    assert.strictEqual(r.data.effective.source, 'org');
+    assert.strictEqual(r.data.effective.from, '社大 <hi@school.org>');
+    assert.ok(!JSON.stringify(r.data).includes('re_school'), '看不到金鑰');
+    assert.strictEqual((await a('GET', `/api/orgs/${B}/mail`)).status, 403, '不能看別的組織');
+    assert.strictEqual((await a('GET', '/api/me')).data.mail.source, 'org');
+
+    // 組織成員不能看寄信設定
+    await a('POST', '/api/users', { org: A, username: 'staff-a', password: 'StaffA2026', role: 'org_member' });
+    db.run("UPDATE users SET must_change = 0 WHERE username = 'staff-a'");
+    const m = client();
+    await m('POST', '/api/login', { username: 'staff-a', password: 'StaffA2026' });
+    assert.strictEqual((await m('GET', `/api/orgs/${A}/mail`)).status, 403);
+
+    // 兩個組織各有一份滿額表單 → A 用自己的帳號寄，B 用平台預設
+    for (const [org, folder, form] of [[A, 'FA', 'FORM_A_xxxxxxxxxxxxxxxx'], [B, 'FB', 'FORM_B_xxxxxxxxxxxxxxxx']]) {
+      google._folder(folder, '表單限額平台'); google._form(form, '講座 ' + org, folder);
+      db.run('UPDATE orgs SET shared_folder_id = ?, shared_folder_name = ? WHERE id = ?', folder, '表單限額平台', org);
+      const add = await su('POST', '/api/forms', { org, formId: form });
+      await su('PATCH', '/api/forms/' + add.data.form.id, { maxResponses: 1, notifyEnabled: true });
+      google._submit(form, 2);
+    }
+    await limiter.checkAll();
+    const byKey = Object.fromEntries(sent.map(x => [x.key, x.from]));
+    assert.strictEqual(byKey['Bearer re_school'], '社大 <hi@school.org>', '組織 A 用自己的帳號');
+    assert.strictEqual(byKey['Bearer re_platform'], '平台 <noreply@platform.com>', '組織 B 沒設定 → 平台預設');
+
+    // A 改回不寄信設定 → 退回平台預設
+    r = await a('PUT', `/api/orgs/${A}/mail`, { provider: 'none' });
+    assert.strictEqual(r.data.effective.source, 'platform');
+    // 測試信
+    await a('PUT', `/api/orgs/${A}/mail`, { provider: 'resend', from: 'hi@school.org', resendKey: 're_school' });
+    r = await a('POST', `/api/orgs/${A}/mail/test`, { to: 'me@school.org' });
+    assert.strictEqual(r.data.source, 'org');
+    assert.strictEqual(sent[sent.length - 1].key, 'Bearer re_school');
+  } finally { server.close(); }
+});

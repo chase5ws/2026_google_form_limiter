@@ -59,10 +59,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
    2. OAuth 同意畫面：目標對象選「外部」，**按「發布應用程式」**。停在「測試中」的話，授權每 7 天就會失效。不用送審。
    3. 建立用戶端，類型選「網頁應用程式」。「已授權的重新導向 URI」按頁面上的「複製」貼上，然後把用戶端 ID 和密鑰貼回平台，儲存。
 4. **連接 Google**：按「連接 Google」→ 看到未驗證的警告，點「進階 → 前往」→「允許」。
-5. **寄信**（要寄候補通知才需要）：
-   - Railway Hobby 方案 → 選 **Resend**，填寄件者和 API Key。網域要先在 [resend.com](https://resend.com/domains) 驗證。
-   - Pro 方案 → 也可以選 **SMTP**，例如 Gmail：`smtp.gmail.com`、`465`、你的 Gmail、[應用程式密碼](https://myaccount.google.com/apppasswords)。
-   - 儲存後寄一封測試信確認。
+5. **平台預設寄信**（選填）：每個組織會在自己的「組織設定」填寄信帳號。這裡只是組織沒設定時的備用，**留空就只用組織自己的**。
 
 ### 進階：用環境變數覆蓋（選填）
 有設定的話會優先使用，網頁上就不能改。
@@ -70,7 +67,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 | 變數 | 用途 |
 |---|---|
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | Google 用戶端 |
-| `RESEND_API_KEY` `MAIL_FROM` 或 `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | 寄信 |
+| `RESEND_API_KEY` `MAIL_FROM` 或 `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | 平台預設寄信（組織沒設定自己的寄信帳號時才用） |
 | `ENCRYPTION_KEY` | 自訂加密金鑰（設定後不要改，改了要重新連接 Google、重填寄信設定） |
 | `DATA_DIR` | 自訂資料位置 |
 | `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
@@ -113,8 +110,12 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 4. 平台「表單」分頁 → 貼上資料夾連結 →「連結資料夾」。這個步驟只要做一次。
 5. 在資料夾裡建立表單，或把現有表單移進來，回平台按「重新整理」，再按「加入管理」。
 6. 設定名額、開放和截止時間。需要的話，勾選「名額已滿時寄信通知」。
-7. 填寫連結**不變**，照常發給大家就好。
-8. 「帳號」分頁可以新增同事。組織成員能管理表單，但不能設定資料夾和帳號。
+7. 要寄通知的話，到 **組織設定 → 寄信帳號** 填你們自己的寄信方式，信會用你們的寄件者寄出：
+   - **Resend**（建議）：到 [resend.com](https://resend.com/domains) 驗證你們的網域，填寄件者和 API Key。
+   - **SMTP**：例如組織的 Gmail，填 `smtp.gmail.com`、`465`、Gmail 帳號和[應用程式密碼](https://myaccount.google.com/apppasswords)。**只有平台的 Railway 是 Pro 方案才能用**，Hobby 方案會被封鎖。
+   - 儲存後寄一封測試信確認。
+8. 填寫連結**不變**，照常發給大家就好。
+9. 「帳號」分頁可以新增同事。組織成員能管理表單，但不能設定資料夾、寄信和帳號。
 
 ### 名額已滿通知怎麼運作
 - 每分鐘讀一次回覆，依**送出時間**排位。第 1 到 N 名是正取，N+1 名之後是候補。
@@ -125,6 +126,14 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
   - 表單開啟「收集電子郵件地址」（表單設定 → 回覆）
   - 另外指定一題讓填寫者輸入 Email 的簡答題
 - 信件主旨和內容可以自訂，能用 `{title}` `{org}` `{rank}` `{limit}` `{waitlist}` 這幾個變數。
+
+## 誰的帳號做什麼
+
+| 用途 | 帳號 |
+|---|---|
+| 登入平台、開關表單、讀回覆數 | **平台**的 Google 帳號（你的 Gmail），只需要連接一次 |
+| 共用資料夾、表單、回覆、上傳的檔案 | **組織**自己的 Google 帳號，容量也算組織的 |
+| 寄候補／遞補通知 | **組織**自己的寄信帳號（組織設定 → 寄信帳號）；沒設定時才用平台預設 |
 
 ## 雲端硬碟與容量
 

@@ -30,10 +30,16 @@ const google = createGoogle({
   db,
   cipher: box
 });
-const mailer = createMailer(() => settings.mailEnv());
-const limiter = createLimiter({ db, google, mailer, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
+// 寄信：每個組織用自己的設定；沒設定時退回平台預設（可留空，只用組織的）
+const platformMailer = Object.assign(createMailer(() => settings.mailEnv()), { source: 'platform' });
+function mailerFor(orgId) {
+  const orgEnv = orgId ? settings.orgMailEnv(orgId) : {};
+  if (orgEnv.MAIL_FROM) return Object.assign(createMailer(orgEnv), { source: 'org' });
+  return platformMailer;
+}
+const limiter = createLimiter({ db, google, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
 const handle = createApp({
-  db, google, limiter, mailer, settings,
+  db, google, limiter, mailerFor, settings,
   runtime: {
     appUrl: APP_URL,
     redirectUri: `${APP_URL}/oauth/google/callback`,
@@ -64,7 +70,7 @@ const server = http.createServer((req, res) => {
   handle(req, res);
 });
 server.listen(Number(env.PORT || 3000), () => {
-  console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}，寄信：${mailer.provider || '未設定'}）`);
+  console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}，平台預設寄信：${platformMailer.provider || '未設定'}）`);
   limiter.start();
 });
 

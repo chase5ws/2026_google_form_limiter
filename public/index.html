@@ -232,6 +232,36 @@
       <div class="card"><div class="log" id="logRows"></div></div>
     </div>
 
+    <!-- 組織設定（組織管理員） -->
+    <div id="pOrgSettings" class="panel hidden">
+      <div class="section-head"><h2 id="osTitle">組織設定</h2></div>
+      <div class="section-head"><h2 style="font-size:15px">寄信帳號</h2><span class="small muted">候補／遞補通知用這個帳號寄出</span></div>
+      <div class="card">
+        <div class="gcard" style="margin-bottom:12px"><span class="gdot" id="omDot"></span><div style="flex:1;min-width:200px"><b id="omStatus"></b><div class="small muted" id="omSub"></div></div></div>
+        <form id="omForm">
+          <label class="field"><span>寄信方式</span>
+            <select id="omProvider">
+              <option value="none">不設定（使用平台預設，如果有的話）</option>
+              <option value="resend">Resend（建議）</option>
+              <option value="smtp">SMTP，例如 Gmail</option>
+            </select></label>
+          <label class="field omfield" data-for="resend smtp"><span>寄件者</span><input type="text" id="omFrom" placeholder="你的組織 <noreply@你的網域>">
+            <div class="hint">收件者看到的寄件人。Resend 要先在 <a href="https://resend.com/domains" target="_blank" rel="noopener">resend.com</a> 驗證網域；Gmail SMTP 請填該 Gmail。</div></label>
+          <label class="field omfield" data-for="resend"><span>Resend API Key</span><input type="password" id="omResend" placeholder="re_……" autocomplete="new-password"></label>
+          <div class="grid2 omfield" data-for="smtp">
+            <label class="field"><span>SMTP 主機</span><input type="text" id="omHost" placeholder="smtp.gmail.com"></label>
+            <label class="field"><span>連接埠</span><input type="number" id="omPort" placeholder="465"></label>
+            <label class="field"><span>帳號</span><input type="text" id="omUser" placeholder="org@gmail.com" autocomplete="off"></label>
+            <label class="field"><span>密碼</span><input type="password" id="omPass" placeholder="Gmail 請用應用程式密碼" autocomplete="new-password"></label>
+          </div>
+          <div class="note warn omfield" data-for="smtp">SMTP 只有在平台的 Railway 是 Pro 方案時才能用；不確定的話請選 Resend，或先寄一封測試信確認。</div>
+          <button class="btn primary" id="omSave">儲存寄信設定</button>
+          <span class="hint" style="margin-left:8px">密碼和金鑰加密存放，儲存後網頁上不會再顯示。</span>
+        </form>
+        <form id="omTestForm" class="row" style="margin-top:14px"><input type="email" class="grow" id="omTo" placeholder="收件 Email" required><button class="btn" id="omTestBtn">寄測試信</button></form>
+      </div>
+    </div>
+
     <!-- 組織（平台） -->
     <div id="pOrgs" class="panel hidden">
       <div class="section-head"><h2>組織</h2><div class="right"><button class="btn sm primary" id="btnAddOrg">建立組織</button></div></div>
@@ -280,7 +310,7 @@
         <form id="fnameForm" class="row"><input type="text" class="grow" id="fnameInput" maxlength="100" required><button class="btn" id="fnameBtn">儲存</button></form>
         <div class="hint">組織要把這個名稱的資料夾共用給你，系統才會接受。改名只影響之後新連結的資料夾。</div>
       </div>
-      <div class="section-head" style="margin-top:22px"><h2>寄信</h2><span class="small muted">寄候補通知才需要</span></div>
+      <div class="section-head" style="margin-top:22px"><h2>平台預設寄信</h2><span class="small muted">選填：組織沒設定自己的寄信帳號時才用；留空就只用組織自己的</span></div>
       <div class="card">
         <div class="gcard" style="margin-bottom:12px"><span class="gdot" id="mDot"></span><div style="flex:1;min-width:200px"><b id="mStatus"></b><div class="small muted" id="mSub"></div></div></div>
         <div id="mailEnvNote" class="note ok hidden">寄信由 Railway 環境變數設定。要改請到 Railway 修改。</div>
@@ -326,7 +356,7 @@
       <legend>名額已滿時寄信通知</legend>
       <label class="chk"><input type="checkbox" id="feNotify"> 依送出順序排位，寄信給沒排進名額的人</label>
       <div id="feNotifyBox">
-        <div id="feMailOff" class="note warn hidden">伺服器還沒設定寄信，勾選後不會寄出。請平台管理員設定 SMTP 或 Resend。</div>
+        <div id="feMailOff" class="note warn hidden">這個組織還沒設定寄信帳號，勾選後不會寄出。請組織管理員到「組織設定 → 寄信帳號」設定。</div>
         <label class="field"><span>收件 Email 從哪裡來</span><select id="feSource"><option value="respondent">表單收集的 Email（設定 → 回覆 → 收集電子郵件地址）</option></select>
           <div class="hint" id="feSourceHint"></div></label>
         <details>
@@ -498,11 +528,11 @@
   }
   $('orgSelect').addEventListener('change', function () {
     S.orgId = Number(this.value); try { localStorage.setItem('gfl_org', S.orgId); } catch (e) {}
-    S.forms = []; go(['forms', 'users', 'logs'].indexOf(S.tab) >= 0 ? S.tab : 'forms');
+    S.forms = []; go(['forms', 'users', 'logs', 'orgsettings'].indexOf(S.tab) >= 0 ? S.tab : 'forms');
   });
   function tabsFor() {
     var t = [];
-    if (S.orgId) { t.push(['forms', '表單']); if (isSuper() || S.me.role === 'org_admin') t.push(['users', '帳號']); t.push(['logs', '紀錄']); }
+    if (S.orgId) { t.push(['forms', '表單']); if (isSuper() || S.me.role === 'org_admin') { t.push(['users', '帳號']); t.push(['orgsettings', '組織設定']); } t.push(['logs', '紀錄']); }
     if (isSuper()) { t.push(['orgs', '所有組織']); t.push(['settings', '平台設定']); }
     return t;
   }
@@ -513,13 +543,14 @@
   function go(tab) {
     S.tab = tab;
     document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
-    var map = { forms: 'pForms', users: 'pUsers', logs: 'pLogs', orgs: 'pOrgs', settings: 'pSettings' };
+    var map = { forms: 'pForms', users: 'pUsers', logs: 'pLogs', orgs: 'pOrgs', settings: 'pSettings', orgsettings: 'pOrgSettings' };
     document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('hidden', p.id !== map[tab]); });
     if (tab === 'forms') return loadForms();
     if (tab === 'users') return loadUsers();
     if (tab === 'logs') return loadLogs(S.orgId, 'logRows');
     if (tab === 'orgs') return loadOrgs();
     if (tab === 'settings') return loadSettings();
+    if (tab === 'orgsettings') return loadOrgSettings();
   }
   var orgObj = function () { return S.orgs.filter(function (x) { return x.id === S.orgId; })[0] || null; };
   var orgName = function () { var o = orgObj(); return o ? o.name : ''; };
@@ -640,7 +671,8 @@
     $('feCountHint').textContent = (f.count == null ? '' : '目前已有 ' + f.count + ' 份回覆。') + '留空代表不限名額。';
     var n = f.notify || {};
     $('feNotify').checked = !!n.enabled;
-    $('feMailOff').classList.toggle('hidden', !!S.mail.enabled);
+    var om = (orgObj() || {}).mail;
+    $('feMailOff').classList.toggle('hidden', !!(om ? om.enabled : S.mail.enabled));
     $('feWS').value = n.waitlistSubject || ''; $('feWS').placeholder = S.templates.waitlistSubject || '';
     $('feWB').value = n.waitlistBody || ''; $('feWB').placeholder = S.templates.waitlistBody || '';
     $('fePS').value = n.promoteSubject || ''; $('fePS').placeholder = S.templates.promoteSubject || '';
@@ -849,6 +881,44 @@
         .then(function () { toast('已儲存寄信設定，可以寄一封測試信確認'); return loadSettings(); });
     });
   });
+  /* ---------- 組織設定：寄信 ---------- */
+  function loadOrgSettings() {
+    $('osTitle').textContent = orgName() + '・組織設定';
+    return GET('/api/orgs/' + S.orgId + '/mail').then(function (r) {
+      var c = r.settings || {}, eff = r.effective || {};
+      $('omDot').classList.toggle('on', !!eff.enabled);
+      $('omStatus').textContent = !eff.enabled ? '還沒設定寄信' : eff.source === 'org' ? '用組織自己的帳號寄信（' + (eff.provider === 'resend' ? 'Resend' : 'SMTP') + '）' : '目前使用平台預設寄信';
+      $('omSub').textContent = eff.enabled ? '寄件者：' + (eff.from || '') : '設定後，候補通知會用你們的寄件者寄出。';
+      $('omProvider').value = c.provider || 'none';
+      $('omFrom').value = c.from || ''; $('omHost').value = c.host || ''; $('omPort').value = c.port || ''; $('omUser').value = c.user || '';
+      $('omResend').value = ''; $('omPass').value = '';
+      $('omResend').placeholder = c.hasSecret && c.provider === 'resend' ? '已設定，留空代表不變' : 're_……';
+      $('omPass').placeholder = c.hasSecret && c.provider === 'smtp' ? '已設定，留空代表不變' : 'Gmail 請用應用程式密碼';
+      toggleOmFields();
+      S.orgs = S.orgs.map(function (o) { return o.id === S.orgId ? Object.assign({}, o, { mail: eff }) : o; });
+    }).catch(function (e) { toast(e.message, true); });
+  }
+  function toggleOmFields() {
+    var p = $('omProvider').value;
+    document.querySelectorAll('.omfield').forEach(function (el) { el.style.display = el.dataset.for.split(' ').indexOf(p) >= 0 ? '' : 'none'; });
+  }
+  $('omProvider').addEventListener('change', function () {
+    toggleOmFields();
+    if ($('omProvider').value === 'smtp' && !$('omHost').value) { $('omHost').value = 'smtp.gmail.com'; $('omPort').value = 465; }
+  });
+  $('omForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('omSave'), '儲存中', function () {
+      return api('PUT', '/api/orgs/' + S.orgId + '/mail', { provider: $('omProvider').value, from: $('omFrom').value, resendKey: $('omResend').value,
+        host: $('omHost').value, port: $('omPort').value, user: $('omUser').value, pass: $('omPass').value })
+        .then(function () { toast('已儲存，可以寄一封測試信確認'); return loadOrgSettings(); });
+    });
+  });
+  $('omTestForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('omTestBtn'), '寄送中', function () { return api('POST', '/api/orgs/' + S.orgId + '/mail/test', { to: $('omTo').value }).then(function (r) { toast(r.source === 'org' ? '測試信已用組織帳號寄出' : '測試信已用平台預設寄出'); }); });
+  });
+
   function renderSetupBanner() {
     var st = S.setup;
     if (!isSuper() || !st) { $('setupBanner').classList.add('hidden'); return; }
