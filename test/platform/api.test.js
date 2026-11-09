@@ -260,6 +260,24 @@ test('完整流程', async (t) => {
     assert.strictEqual((await s.get('/api/forms?org=' + orgA)).status, 200);
   });
 
+  await t.test('即時動態：最新回覆在前、標出候補；回覆試算表只接受「發布到網路」的連結', async () => {
+    await a.patch('/api/forms/' + form.id, { maxResponses: 3 });
+    const r = await a.get(`/api/forms/${form.id}/activity`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.strictEqual(r.data.total, google.files.get(F1).responses.length);
+    assert.deepStrictEqual(r.data.questions.map(q => q.title), ['聯絡 Email']);
+    assert.ok(r.data.items[0].rank > r.data.items[1].rank, '最新的在最前面');
+    assert.strictEqual(r.data.items[0].waitlist, '總名額');
+    assert.strictEqual(r.data.items[r.data.items.length - 1].waitlist, null);
+    assert.match(r.data.items[0].answers[0], /^alt-/);
+    assert.match((await a.patch('/api/forms/' + form.id, { sheetUrl: 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz012345/edit' })).data.error, /發布到網路/);
+    const ok = await a.patch('/api/forms/' + form.id, { sheetUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vAbCdEfGhIjKlMnOpQrStUvWxYz/pubhtml' });
+    assert.strictEqual(ok.data.form.sheetUrl, 'https://docs.google.com/spreadsheets/d/e/2PACX-1vAbCdEfGhIjKlMnOpQrStUvWxYz/pubhtml?widget=true&headers=false');
+    const b = (await login(base, 'yuntech', 'YunOwn2026')).c;
+    assert.strictEqual((await b.get(`/api/forms/${form.id}/activity`)).status, 403, '別的組織看不到');
+    await a.patch('/api/forms/' + form.id, { maxResponses: '' });
+  });
+
   await t.test('停用組織：該組織的人被登出、排程略過', async () => {
     await su.patch('/api/orgs/' + orgA, { disabled: true });
     assert.strictEqual((await a.get('/api/forms?org=' + orgA)).status, 401);

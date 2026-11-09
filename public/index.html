@@ -161,6 +161,14 @@
   .optrow.gone input { text-decoration: line-through; color: var(--muted); }
   .varbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0 12px; }
   .varbar .btn { padding: 3px 10px; font-size: 13px; border-radius: 999px; background: var(--brand-weak); border-color: transparent; color: var(--brand); }
+  .varbar .lbl { font-size: 12px; color: var(--muted); }
+  .bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding-top: 6px; }
+  .bars div { flex: 1; background: var(--brand-weak); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+  .bars div.has { background: var(--brand); }
+  .barlbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .live-tbl td { font-size: 13px; vertical-align: top; max-width: 260px; word-break: break-word; }
+  .live-tbl tr.new td { background: #fffbe6; }
+  .sheet-frame { width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
   .dirty-dot { color: var(--warn); font-size: 12px; font-weight: 600; }
 
   dialog { border: 0; border-radius: 16px; padding: 0; width: min(540px, calc(100vw - 32px)); box-shadow: 0 20px 50px rgba(0,0,0,.2); }
@@ -263,7 +271,7 @@
     <!-- ===== 組織：單一表單設定（整頁） ===== -->
     <div id="pFormEdit" class="panel hidden">
       <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
-      <div class="section-head"><h2 id="feTitle">表單設定</h2><div class="right"><a class="btn sm" id="feOpenForm" target="_blank" rel="noopener">在 Google 表單打開</a></div></div>
+      <div class="section-head"><h2 id="feTitle">表單設定</h2><div class="right"><button type="button" class="btn sm" id="feLive">即時動態</button><a class="btn sm" id="feOpenForm" target="_blank" rel="noopener">在 Google 表單打開</a></div></div>
       <div id="feErr" class="err hidden"></div>
 
       <form class="card" id="feBasic">
@@ -277,16 +285,14 @@
       </form>
 
       <div class="card gap">
-        <div class="section-head"><h3>選項與名額</h3></div>
-        <div class="hint" style="margin:-6px 0 10px">選一個段落，可以直接修改題目名稱、選項名稱、新增或刪除選項，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。</div>
+        <div class="section-head"><h3>段落：選項、名額與寄信通知</h3></div>
+        <div class="hint" style="margin:-6px 0 10px">選一個段落（預設最後一段），可以直接修改題目名稱、選項名稱、新增或刪除選項，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。</div>
         <div id="feQLoading" class="small muted"><span class="spin"></span> 讀取表單題目中…</div>
         <div id="feQBox" class="hidden">
           <label class="field"><span>段落</span><select id="feSection"></select></label>
           <div id="feQuestions"></div>
         </div>
-      </div>
-
-      <form class="card gap" id="feNotifyForm">
+      <form class="qblock" id="feNotifyForm" style="margin-top:16px">
         <div class="section-head"><h3>名額已滿時寄信通知</h3><span class="dirty-dot hidden" data-dirty="notify">尚未儲存</span>
           <div class="right"><button type="button" class="btn sm" data-reset="notify">重置</button><button class="btn sm primary" id="feNotifySave">儲存</button></div></div>
         <label class="chk"><input type="checkbox" id="feNotify"> 依送出順序排位，寄信給沒排進名額的人</label>
@@ -294,17 +300,48 @@
           <div id="feMailOff" class="note warn hidden">這個組織還沒設定寄信帳號，勾選後不會寄出。請到「組織設定 → 寄信帳號」設定。</div>
           <label class="field"><span>收件 Email 從哪裡來</span><select id="feSource"><option value="respondent">表單收集的 Email</option></select>
             <div class="hint" id="feSourceHint"></div></label>
-          <div class="small muted">信件內容：點下面的按鈕，把欄位插入到游標的位置，寄出時會換成實際內容。</div>
-          <div class="varbar" id="feVars"></div>
-          <label class="field"><span>候補信主旨</span><input type="text" id="feWS" class="tplf"></label>
+          <label class="field" style="margin-bottom:6px"><span>候補信主旨</span><input type="text" id="feWS" class="tplf"></label>
+          <div class="varbar" data-for="feWB"></div>
           <label class="field"><span>候補信內容</span><textarea id="feWB" rows="6" class="tplf"></textarea></label>
-          <label class="field"><span>遞補成功信主旨</span><input type="text" id="fePS" class="tplf"></label>
+          <label class="field" style="margin-bottom:6px"><span>遞補成功信主旨</span><input type="text" id="fePS" class="tplf"></label>
+          <div class="varbar" data-for="fePB"></div>
           <label class="field"><span>遞補成功信內容</span><textarea id="fePB" rows="5" class="tplf"></textarea></label>
           <div class="row" style="margin-bottom:8px"><button type="button" class="btn sm" id="feTplDefault">恢復預設內容</button></div>
           <div class="hint">超出名額的人會收到「候補」信；之後有人被刪除、他排進名額內，會再收到「遞補成功」信。每人每種信只寄一次，失敗最多重試 3 次。</div>
         </div>
       </form>
+      </div>
+
       <div class="hint" style="margin-top:10px">每一區各自儲存。系統每分鐘檢查一次，開關可能會晚 1 分鐘左右。</div>
+    </div>
+
+    <!-- ===== 組織：即時動態（整頁） ===== -->
+    <div id="pLive" class="panel hidden">
+      <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
+      <div class="section-head"><h2 id="lvTitle">即時動態</h2>
+        <div class="right"><label class="small row" style="gap:6px"><input type="checkbox" id="lvAuto" checked> 每 20 秒自動更新</label><button type="button" class="btn sm" id="lvRefresh">立即更新</button></div></div>
+      <div class="small muted" id="lvAt" style="margin:-6px 0 12px"></div>
+      <div id="lvErr" class="note bad hidden"></div>
+      <div class="stats" id="lvStats"></div>
+      <div class="card gap">
+        <div class="section-head"><h3>最近 24 小時</h3><span class="small muted">每小時的送出數</span></div>
+        <div class="bars" id="lvBars"></div><div class="barlbl" id="lvBarLbl"></div>
+      </div>
+      <div class="section-head gap"><h3>最新的回覆</h3><span class="small muted">最新的在最上面，最多顯示 100 筆</span></div>
+      <div class="card tbl-wrap"><table class="live-tbl"><thead id="lvHead"></thead><tbody id="lvRows"></tbody></table></div>
+
+      <form class="card gap" id="lvSheetForm">
+        <div class="section-head"><h3>回覆試算表</h3><span class="dirty-dot hidden" data-dirty="sheet">尚未儲存</span>
+          <div class="right"><button type="button" class="btn sm" id="lvSheetReset">重置</button><button class="btn sm primary" id="lvSheetSave">儲存</button></div></div>
+        <ol class="steps">
+          <li>在 Google 表單的「回覆」分頁按「連結至試算表」，建立回覆試算表（Google 會自動把每筆回覆寫進去）。</li>
+          <li>打開試算表，按「檔案 → 共用 → 發布到網路」，選「整份文件」和「網頁」，按「發布」。</li>
+          <li>複製出現的連結，貼在下面儲存，這裡就會顯示試算表。</li>
+        </ol>
+        <label class="field"><span>發布到網路的連結</span><input type="text" id="lvSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/……/pubhtml"></label>
+        <div class="hint" style="margin:-6px 0 10px">注意：發布到網路後，知道連結的人都看得到試算表內容。Google 發布的版本大約每 5 分鐘更新一次；上面的「最新的回覆」是即時的。</div>
+        <iframe class="sheet-frame hidden" id="lvSheet" title="回覆試算表" referrerpolicy="no-referrer"></iframe>
+      </form>
     </div>
 
     <!-- ===== 組織：測試（整頁） ===== -->
@@ -610,13 +647,14 @@
     if (isOwner()) t.push(['logs', '紀錄']);
     return t;
   }
-  var PANEL = { home: 'pHome', forms: 'pForms', form: 'pFormEdit', test: 'pSim', notices: 'pNotices', users: 'pUsers', logs: 'pLogs', orgsettings: 'pOrgSettings', orgs: 'pOrgs', settings: 'pSettings' };
-  var PARENT = { form: 'forms', test: 'forms', notices: 'forms' };
+  var PANEL = { home: 'pHome', forms: 'pForms', form: 'pFormEdit', live: 'pLive', test: 'pSim', notices: 'pNotices', users: 'pUsers', logs: 'pLogs', orgsettings: 'pOrgSettings', orgs: 'pOrgs', settings: 'pSettings' };
+  var PARENT = { form: 'forms', live: 'forms', test: 'forms', notices: 'forms' };
   function open(scope, page, sub) {
     var allowed = pagesFor(scope).map(function (t) { return t[0]; });
     if (allowed.indexOf(PARENT[page] || page) < 0) page = allowed[0];
     if (scope !== S.scope) { S.forms = []; S.google = null; S.mail = null; }
     S.scope = scope; S.page = page; S.sub = sub || null;
+    stopLive();
     try { localStorage.setItem('gfl_scope', String(scope)); } catch (e) {}
     renderScope();
     $('tabs').innerHTML = pagesFor(scope).map(function (t) { return '<button class="tab' + ((PARENT[page] || page) === t[0] ? ' on' : '') + '" data-page="' + t[0] + '">' + t[1] + '</button>'; }).join('');
@@ -626,6 +664,7 @@
     if (page === 'forms') return loadForms();
     if (page === 'form') return withForm(sub, openFormPage);
     if (page === 'test') return withForm(sub, openSimPage);
+    if (page === 'live') return withForm(sub, openLivePage);
     if (page === 'notices') return withForm(sub, openNoticesPage);
     if (page === 'users') return loadUsers();
     if (page === 'logs') return loadLogs(orgId(), 'logRows');
@@ -761,6 +800,7 @@
           '<button class="btn sm primary" data-act="edit">設定</button>' +
           (f.manualClosed ? '<button class="btn sm" data-act="open">開放</button>' : '<button class="btn sm" data-act="close">立即關閉</button>') +
           '<button class="btn sm" data-act="check">檢查</button>' +
+          '<button class="btn sm" data-act="live">即時動態</button>' +
           '<button class="btn sm" data-act="sim">測試</button>' +
           '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單／看回覆</a>' +
           '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
@@ -775,6 +815,7 @@
     if (act === 'edit') return orgPage('form', id);
     if (act === 'notices') return orgPage('notices', id);
     if (act === 'sim') return orgPage('test', id);
+    if (act === 'live') return orgPage('live', id);
     if (act === 'check') return run(b, '檢查中', function () { return api('POST', '/api/forms/' + id + '/check').then(function (r) { replaceForm(r.form); }); });
     if (act === 'close') { if (!confirm('確定立即關閉「' + f.title + '」？\n之後要按「開放」才會恢復。')) return;
       return run(b, '關閉中', function () { return api('POST', '/api/forms/' + id + '/open', { open: false }).then(function (r) { replaceForm(r.form); toast('已關閉'); }); }); }
@@ -795,11 +836,12 @@
     S.editing = f.id; showErr('feErr', '');
     $('feTitle').textContent = f.title;
     $('feOpenForm').href = f.editUrl || '#';
+    $('feLive').onclick = function () { orgPage('live', f.id); };
     fillBasic(f); fillNotify(f);
     loadQuotaEditor(f);
     $('feMailOff').classList.add('hidden');
     refreshOrg().then(function (o) { $('feMailOff').classList.toggle('hidden', !!(o && o.mail && o.mail.enabled)); });
-    $('feVars').innerHTML = (S.templateVars || []).map(function (v) { return '<button type="button" class="btn" data-var="' + esc(v.label) + '">' + esc(v.label) + '</button>'; }).join('');
+    document.querySelectorAll('.varbar').forEach(function (bar) { bar.innerHTML = '<span class="lbl">插入欄位：</span>' + (S.templateVars || []).map(function (v) { return '<button type="button" class="btn" data-var="' + esc(v.label) + '">' + esc(v.label) + '</button>'; }).join(''); });
     $('feSource').innerHTML = '<option value="respondent">表單收集的 Email</option>';
     $('feSource').value = 'respondent';
     $('feSourceHint').textContent = '讀取表單題目中…';
@@ -858,14 +900,16 @@
   // 插入欄位：插到最後點過的那一格的游標位置
   var lastTpl = null;
   document.querySelectorAll('.tplf').forEach(function (el) { el.addEventListener('focus', function () { lastTpl = el; }); });
-  $('feVars').addEventListener('click', function (e) {
+  document.querySelectorAll('.varbar').forEach(function (bar) { bar.addEventListener('click', function (e) {
     var b = e.target.closest('[data-var]'); if (!b) return;
-    var el = lastTpl || $('feWB'), tok = '{' + b.dataset.var + '}';
+    // 插到這一組（主旨或內容）最後點過的那一格，沒點過就插到內容
+    var pair = bar.dataset.for === 'feWB' ? ['feWS', 'feWB'] : ['fePS', 'fePB'];
+    var el = lastTpl && pair.indexOf(lastTpl.id) >= 0 ? lastTpl : $(bar.dataset.for), tok = '{' + b.dataset.var + '}';
     var st = el.selectionStart == null ? el.value.length : el.selectionStart, en = el.selectionEnd == null ? st : el.selectionEnd;
     el.value = el.value.slice(0, st) + tok + el.value.slice(en);
     el.focus(); el.setSelectionRange(st + tok.length, st + tok.length);
     setDirty('notify', true);
-  });
+  }); });
   $('feTplDefault').addEventListener('click', function () { TPL.forEach(function (k) { $(TPL_EL[k]).value = S.templates[k] || ''; }); setDirty('notify', true); });
 
   /* 選項與名額：每一題各自儲存（題目名稱、選項名稱、新增／刪除／排序、名額） */
@@ -878,14 +922,14 @@
       S.qStruct = st;
       st.sections.forEach(function (sec) { sec.questions.forEach(function (q) { S.qDraft[q.questionId] = draftOf(q); }); });
       var withQ = st.sections.filter(function (sec) { return sec.questions.length; });
-      if (!withQ.length) { $('feQLoading').textContent = '這份表單沒有單選、多選或下拉題，無法設定選項名額。'; return; }
+      if (!withQ.length) { $('feQLoading').textContent = '這份表單沒有單選、多選或下拉題，無法設定選項名額；下面仍可設定寄信通知。'; return; }
       var keep = $('feSection').value;
       $('feSection').innerHTML = st.sections.map(function (sec) {
         var used = sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); });
         return '<option value="' + sec.index + '"' + (sec.questions.length ? '' : ' disabled') + '>第 ' + sec.index + ' 段：' + esc(sec.title) + '（' + sec.questions.length + ' 題選擇題' + (used ? '・已設名額' : '') + '）</option>';
       }).join('');
-      var first = withQ.filter(function (sec) { return String(sec.index) === keep; })[0] ||
-        withQ.filter(function (sec) { return sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); }); })[0] || withQ[0];
+      // 預設最後一段（寄信通知也在這裡）；剛儲存過就留在原本的段落
+      var first = withQ.filter(function (sec) { return String(sec.index) === keep; })[0] || withQ[withQ.length - 1];
       $('feSection').value = first.index;
       renderQuotaQuestions();
       $('feQLoading').classList.add('hidden'); $('feQBox').classList.remove('hidden');
@@ -948,6 +992,78 @@
       }).catch(function (e) { showErr('feErr', e.message); window.scrollTo(0, 0); throw e; });
     }).catch(function () {});
   }
+
+  /* ---------- 即時動態（整頁）：最新回覆、每小時送出數、回覆試算表 ---------- */
+  var liveTimer = null, liveSeen = null;
+  function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+  function openLivePage(f) {
+    S.liveId = f.id; liveSeen = null;
+    $('lvTitle').textContent = '即時動態・' + f.title;
+    $('lvRows').innerHTML = '<tr><td class="muted"><span class="spin"></span> 讀取回覆中…</td></tr>'; $('lvHead').innerHTML = '';
+    fillSheet(f);
+    stopLive();
+    if ($('lvAuto').checked) liveTimer = setInterval(function () { if (!document.hidden) loadLive(); }, 20000);
+    return loadLive();
+  }
+  $('lvAuto').addEventListener('change', function () {
+    stopLive();
+    if (this.checked && S.page === 'live') liveTimer = setInterval(function () { if (!document.hidden) loadLive(); }, 20000);
+  });
+  $('lvRefresh').addEventListener('click', function () { run($('lvRefresh'), '更新中', loadLive); });
+  function loadLive() {
+    var id = S.liveId;
+    return GET('/api/forms/' + id + '/activity').then(function (d) {
+      if (S.page !== 'live' || S.liveId !== id) return;
+      $('lvErr').classList.add('hidden');
+      $('lvAt').textContent = '更新時間 ' + fmt(d.at) + (liveTimer ? '・每 20 秒自動更新' : '');
+      var now = Date.now(), day0 = new Date(); day0.setHours(0, 0, 0, 0);
+      var today = d.recentTimes.filter(function (t) { return t >= day0.getTime(); }).length;
+      var hour = d.recentTimes.filter(function (t) { return t >= now - 3600e3; }).length;
+      var wait = d.items.filter(function (x) { return x.waitlist; }).length;
+      $('lvStats').innerHTML = [['總回覆', d.total], ['今天', today], ['最近 1 小時', hour],
+        ['名額', d.maxResponses ? '剩 ' + Math.max(0, d.maxResponses - d.total) + ' / ' + d.maxResponses : '不限'], ['候補（最近 100 筆）', wait]]
+        .map(function (x) { return '<div class="stat"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
+      // 最近 24 小時，每小時一格
+      var buckets = []; for (var i = 23; i >= 0; i--) buckets.push(0);
+      var start = now - 24 * 3600e3;
+      d.recentTimes.forEach(function (t) { if (t >= start) buckets[Math.min(23, Math.floor((t - start) / 3600e3))]++; });
+      var max = Math.max.apply(null, buckets.concat([1]));
+      $('lvBars').innerHTML = buckets.map(function (n, i) {
+        var h0 = new Date(start + i * 3600e3);
+        return '<div class="' + (n ? 'has' : '') + '" style="height:' + Math.max(2, Math.round(n / max * 100)) + '%" title="' + h0.getHours() + ' 點起：' + n + ' 筆"></div>';
+      }).join('');
+      var lbl = function (ms) { var x = new Date(ms); return x.getHours() + ':00'; };
+      $('lvBarLbl').innerHTML = '<span>' + lbl(start) + '</span><span>' + lbl(start + 12 * 3600e3) + '</span><span>現在</span>';
+      // 最新的回覆（新出現的那幾筆會標底色）
+      $('lvHead').innerHTML = '<tr><th>順位</th><th>時間</th><th>狀態</th><th>Email</th>' + d.questions.map(function (q) { return '<th>' + esc(q.title) + '</th>'; }).join('') + '</tr>';
+      var seen = liveSeen;
+      $('lvRows').innerHTML = d.items.length ? d.items.map(function (x) {
+        var isNew = seen && x.rank > seen;
+        return '<tr' + (isNew ? ' class="new"' : '') + '><td>' + x.rank + '</td><td class="small" style="white-space:nowrap">' + fmt(x.at) + '</td>' +
+          '<td>' + (x.waitlist ? '<span class="tag off">候補</span><div class="small muted">' + esc(x.waitlist) + '</div>' : '<span class="tag ok">正取</span>') + '</td>' +
+          '<td class="small">' + esc(x.email || '—') + '</td>' + x.answers.map(function (a) { return '<td>' + esc(a) + '</td>'; }).join('') + '</tr>';
+      }).join('') : '<tr><td colspan="4" class="muted">還沒有人填寫。</td></tr>';
+      liveSeen = d.total;
+    }).catch(function (e) { $('lvErr').textContent = '讀取失敗：' + e.message; $('lvErr').classList.remove('hidden'); });
+  }
+  function fillSheet(f) {
+    var url = f.sheetUrl || '';
+    $('lvSheetUrl').value = url.replace(/\?widget=true&headers=false$/, '');
+    $('lvSheet').classList.toggle('hidden', !url);
+    if (url && $('lvSheet').getAttribute('src') !== url) $('lvSheet').setAttribute('src', url);
+    if (!url) $('lvSheet').removeAttribute('src');
+    setDirty('sheet', false);
+  }
+  $('lvSheetUrl').addEventListener('input', function () { setDirty('sheet', true); });
+  $('lvSheetReset').addEventListener('click', function () { var f = S.forms.filter(function (x) { return x.id === S.liveId; })[0]; if (f) fillSheet(f); });
+  $('lvSheetForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    run($('lvSheetSave'), '儲存中', function () {
+      return api('PATCH', '/api/forms/' + S.liveId, { sheetUrl: $('lvSheetUrl').value }).then(function (r) {
+        replaceForm(r.form); fillSheet(r.form); toast(r.form.sheetUrl ? '已儲存，下面會顯示試算表' : '已移除試算表');
+      });
+    });
+  });
 
   /* ---------- 寄信紀錄（整頁） ---------- */
   function openNoticesPage(f) {
