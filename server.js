@@ -21,6 +21,22 @@ if (data.onRailway && !data.volumeMounted) {
 }
 if (key.created) console.log(`已自動產生加密金鑰：${key.file}`);
 
+// 這次部署的 commit：Railway 會提供 RAILWAY_GIT_COMMIT_SHA；本機開發時讀 .git
+function currentCommit() {
+  if (env.RAILWAY_GIT_COMMIT_SHA) return env.RAILWAY_GIT_COMMIT_SHA;
+  try {
+    const fs = require('node:fs'), path = require('node:path');
+    const git = path.join(__dirname, '.git');
+    const head = fs.readFileSync(path.join(git, 'HEAD'), 'utf8').trim();
+    if (!head.startsWith('ref: ')) return head;
+    const ref = head.slice(5);
+    try { return fs.readFileSync(path.join(git, ref), 'utf8').trim(); } catch (e) { /* 可能在 packed-refs */ }
+    const line = fs.readFileSync(path.join(git, 'packed-refs'), 'utf8').split('\n').find(l => l.endsWith(' ' + ref));
+    return line ? line.split(' ')[0] : '';
+  } catch (e) { return ''; }
+}
+const COMMIT = currentCommit().slice(0, 7);
+
 const db = open(data.dir);
 const box = cipher(key.key);
 const settings = createSettings({ db, cipher: box });
@@ -52,7 +68,8 @@ const handle = createApp({
     defaultAdminUser: env.ADMIN_ACCOUNT || env.ADMIN__ACCOUNT || env.DEFAULT_ADMIN_USER,
     defaultAdminPassword: env.DEFAULT_ADMIN_PASSWORD,
     adminPassword: env.ADMIN_PASSWORD,
-    resetAdminPassword: env.RESET_ADMIN_PASSWORD
+    resetAdminPassword: env.RESET_ADMIN_PASSWORD,
+    commit: COMMIT
   }
 });
 

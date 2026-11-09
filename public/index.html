@@ -60,6 +60,7 @@
   .acct { margin-left: auto; position: relative; }
   .acct > button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .acct > button .role { color: var(--muted); font-size: 12px; }
+  .ver { font: 11px ui-monospace, Menlo, monospace; color: #b8bcc5; user-select: all; }
   .menu { position: absolute; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgba(20,24,40,.12); min-width: 180px; padding: 6px; z-index: 20; }
   .menu .who { padding: 6px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; font-size: 13px; }
   .menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
@@ -229,6 +230,7 @@
           <button type="button" id="btnLogout">登出</button>
         </div>
       </div>
+      <span class="ver" id="ver"></span>
     </div>
   </header>
   <div class="subnav"><nav id="tabs"></nav></div>
@@ -563,7 +565,7 @@
 
   function boot() {
     return GET('/api/me').then(function (r) {
-      S.me = r.me; S.templates = r.templates || {}; S.templateVars = r.templateVars || [];
+      S.me = r.me; $('ver').textContent = r.commit || ''; $('ver').title = r.commit ? '目前版本（commit）' : ''; S.templates = r.templates || {}; S.templateVars = r.templateVars || [];
       if (S.me.mustChange) { show('vChange', true); return; }
       var role = isSuper() ? (isOwner() ? '平台擁有者' : '平台管理員') : (S.me.orgName + '・' + ROLE[S.me.role]);
       $('acctName').textContent = S.me.displayName; $('acctRole').textContent = role;

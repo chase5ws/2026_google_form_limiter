@@ -49,7 +49,7 @@ fs.mkdirSync(OUT, { recursive: true });
   const limiter = createLimiter({ db, googleFor, mailerFor, log: { error() {} } });
   const server = http.createServer(createApp({ db, googleFor, limiter, mailerFor, settings,
     runtime: { appUrl: 'https://forms.up.railway.app', redirectUri: 'https://forms.up.railway.app/oauth/google/callback', onRailway: true, volumeMounted: true, dataDir: '/data', dataSource: 'volume', keySource: 'auto', domainFromRailway: true },
-    config: { appUrl: 'http://localhost', fetchImpl: fakeFetch } }));
+    config: { appUrl: 'http://localhost', fetchImpl: fakeFetch, commit: '477d311' } }));
   await new Promise(r => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const F1 = '1FormAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', F2 = '1FormBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
