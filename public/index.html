@@ -161,9 +161,28 @@
   .qblock { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
   .qblock .section-head { margin-bottom: 8px; }
   .qblock .qtitle { flex: 1 1 240px; min-width: 0; font-weight: 600; }
-  .optrow { display: grid; grid-template-columns: minmax(0, 1fr) 70px 110px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .optrow { display: grid; grid-template-columns: 26px minmax(0, 1fr) 118px 100px auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); background: #fff; }
   .optrow.head { font-size: 12px; color: var(--muted); padding-top: 0; }
   .optrow .cnt { font-size: 14px; text-align: center; }
+  /* 拖拽排序：按住左邊的把手上下拖 */
+  .grip { border: 0; background: none; padding: 4px 0; cursor: grab; color: #9aa0ab; font-size: 18px; line-height: 1; touch-action: none; user-select: none; border-radius: 6px; }
+  .grip:hover, .grip:focus-visible { color: var(--brand); background: var(--brand-weak); outline: none; }
+  .optrow.dragging { position: relative; z-index: 3; box-shadow: 0 6px 18px rgba(20,24,40,.15); border-radius: 8px; border-bottom-color: transparent; }
+  .optrow.dragging .grip { cursor: grabbing; color: var(--brand); }
+  body.dragging-opt, body.dragging-opt * { cursor: grabbing !important; user-select: none; }
+  /* 下拉選單選表單 */
+  .picker { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+  .picker label.field { flex: 1 1 320px; margin: 0; }
+  .picker label.field select { font-weight: 600; }
+  .picker .right { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  /* 右下角的儲存 */
+  .savebar { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px 8px 14px; box-shadow: 0 10px 30px rgba(20,24,40,.16); max-width: calc(100vw - 40px); }
+  .savebar .sbmsg { font-size: 13px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+  .savebar.dirty { border-color: #ecd27e; }
+  .savebar.dirty .sbmsg { color: var(--warn); font-weight: 600; }
+  body.has-savebar main { padding-bottom: 110px; }
+  body.has-savebar #toast { bottom: 84px; }
   .optrow .ops { display: flex; gap: 4px; }
   .optrow .ops .btn { padding: 3px 8px; font-size: 12px; }
   .optrow.gone input { text-decoration: line-through; color: var(--muted); }
@@ -200,9 +219,12 @@
     .scope { order: 3; width: 100%; }
     .scope select { width: 100%; max-width: none; }
     .acct > button .role { display: none; }
-    .optrow { grid-template-columns: minmax(0, 1fr) 44px 80px; }
-    .optrow .ops { grid-column: 1 / -1; }
-    .optrow.head .ops { display: none; }
+    .optrow { grid-template-columns: 24px minmax(0, 1fr) 72px auto; }
+    .optrow .cnt { grid-column: 2 / -1; grid-row: 2; text-align: left; }
+    .optrow .cnt .bat { width: auto; }
+    .optrow.head .cnt { display: none; }
+    .savebar { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+    .savebar .sbmsg { flex: 1; max-width: none; }
   }
 </style>
 </head>
@@ -267,24 +289,20 @@
       </div>
     </div>
 
-    <!-- ===== 組織：管理表單 ===== -->
-    <div id="pForms" class="panel hidden">
-      <div class="section-head">
-        <h2>管理表單</h2><span class="muted small" id="formsCount"></span>
-        <div class="right"><button class="btn sm" id="btnCheckAll">重新檢查全部</button></div>
-      </div>
-      <div class="forms" id="formsList"></div>
-    </div>
-
-    <!-- ===== 組織：單一表單設定（整頁） ===== -->
+    <!-- ===== 組織：管理表單（先用下拉選單選表單，再設定） ===== -->
     <div id="pFormEdit" class="panel hidden">
-      <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
-      <div class="section-head"><h2 id="feTitle">表單設定</h2><div class="right"><button type="button" class="btn sm" id="feLive">即時動態</button><a class="btn sm" id="feOpenForm" target="_blank" rel="noopener">在 Google 表單打開</a></div></div>
+      <div class="section-head"><h2>管理表單</h2><span class="muted small" id="feCount"></span></div>
+      <div class="picker card">
+        <label class="field"><span>要設定的表單</span><select id="fePick"></select></label>
+        <div class="right"><button type="button" class="btn sm" id="feLive">看數據</button><a class="btn sm" id="feOpenForm" target="_blank" rel="noopener">在 Google 表單打開</a></div>
+      </div>
+      <div id="feEmpty" class="empty card hidden">還沒有表單。到「首頁」把資料夾裡的表單加入管理。</div>
+      <div id="feBody">
+      <h2 id="feTitle" class="sr">表單設定</h2>
       <div id="feErr" class="err hidden"></div>
 
       <form class="card" id="feBasic">
-        <div class="section-head"><h3>名額與時間</h3><span class="dirty-dot hidden" data-dirty="basic">尚未儲存</span>
-          <div class="right"><button type="button" class="btn sm" data-reset="basic">重置</button><button class="btn sm primary" id="feBasicSave">儲存</button></div></div>
+        <div class="section-head"><h3>名額與時間</h3></div>
         <label class="field"><span>名額上限（份）</span><input type="number" id="feMax" min="1" step="1" placeholder="留白代表不限人數"><div class="hint" id="feCountHint"></div></label>
         <div class="grid2">
           <label class="field"><span>開放時間</span><input type="datetime-local" id="feOpen"><div class="hint">留白代表立即開放</div></label>
@@ -294,15 +312,15 @@
 
       <div class="card gap">
         <div class="section-head"><h3>段落：選項、名額與寄信通知</h3></div>
-        <div class="hint" style="margin:-6px 0 10px">選一個段落（預設最後一段），可以直接修改題目名稱、選項名稱、新增或刪除選項，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。</div>
+        <div class="hint" style="margin:-6px 0 10px">從下拉選單選一個段落（預設最後一段），可以直接修改題目名稱、選項名稱、新增或刪除選項，按住左邊的 <b>⠿</b> 拖拽調整順序，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。選單最後一項是「名額已滿時寄信通知」。</div>
         <div id="feQLoading" class="small muted"><span class="spin"></span> 讀取表單題目中…</div>
         <div id="feQBox" class="hidden">
           <label class="field"><span>段落</span><select id="feSection"></select></label>
+          <div id="feQNone" class="note warn hidden">這份表單沒有單選、多選或下拉題，無法設定選項名額；仍可在選單選「名額已滿時寄信通知」。</div>
           <div id="feQuestions"></div>
         </div>
-      <form class="qblock" id="feNotifyForm" style="margin-top:16px">
-        <div class="section-head"><h3>名額已滿時寄信通知</h3><span class="dirty-dot hidden" data-dirty="notify">尚未儲存</span>
-          <div class="right"><button type="button" class="btn sm" data-reset="notify">重置</button><button class="btn sm primary" id="feNotifySave">儲存</button></div></div>
+      <form class="qblock hidden" id="feNotifyForm">
+        <div class="section-head"><h3>名額已滿時寄信通知</h3></div>
         <label class="chk"><input type="checkbox" id="feNotify"> 依送出順序排位，寄信給沒排進名額的人</label>
         <div id="feNotifyBox">
           <div id="feMailOff" class="note warn hidden">這個組織還沒設定寄信帳號，勾選後不會寄出。請到「組織設定 → 寄信帳號」設定。</div>
@@ -320,13 +338,20 @@
       </form>
       </div>
 
-      <div class="hint" style="margin-top:10px">每一區各自儲存。系統每分鐘檢查一次，開關可能會晚 1 分鐘左右。</div>
+      <div class="hint" style="margin-top:10px">改完按右下角的「儲存」，會把名額與時間、各題選項、寄信通知的修改一次存好。系統每分鐘檢查一次，開關可能會晚 1 分鐘左右。</div>
+      </div>
     </div>
 
-    <!-- ===== 組織：即時動態（整頁） ===== -->
-    <div id="pLive" class="panel hidden">
-      <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
-      <div class="section-head"><h2 id="lvTitle">即時動態</h2>
+    <!-- ===== 組織：數據（先用下拉選單選表單，再看數據） ===== -->
+    <div id="pData" class="panel hidden">
+      <div class="section-head"><h2>數據</h2><span class="muted small" id="formsCount"></span></div>
+      <div class="picker card">
+        <label class="field"><span>要看數據的表單</span><select id="dtPick"></select></label>
+      </div>
+      <div id="dtEmpty" class="empty card hidden">還沒有表單。到「首頁」把資料夾裡的表單加入管理。</div>
+      <div id="dtBody">
+      <div class="forms" id="formsList"></div>
+      <div class="section-head gap"><h3 id="lvTitle">即時動態</h3>
         <div class="right"><label class="small row" style="gap:6px"><input type="checkbox" id="lvAuto" checked> 每 20 秒自動更新</label><button type="button" class="btn sm" id="lvRefresh">立即更新</button></div></div>
       <div class="small muted" id="lvAt" style="margin:-6px 0 12px"></div>
       <div id="lvErr" class="note bad hidden"></div>
@@ -339,22 +364,22 @@
       <div class="card tbl-wrap"><table class="live-tbl"><thead id="lvHead"></thead><tbody id="lvRows"></tbody></table></div>
 
       <form class="card gap" id="lvSheetForm">
-        <div class="section-head"><h3>回覆試算表</h3><span class="dirty-dot hidden" data-dirty="sheet">尚未儲存</span>
-          <div class="right"><button type="button" class="btn sm" id="lvSheetReset">重置</button><button class="btn sm primary" id="lvSheetSave">儲存</button></div></div>
+        <div class="section-head"><h3>回覆試算表</h3></div>
         <ol class="steps">
           <li>在 Google 表單的「回覆」分頁按「連結至試算表」，建立回覆試算表（Google 會自動把每筆回覆寫進去）。</li>
           <li>打開試算表，按「檔案 → 共用 → 發布到網路」，選「整份文件」和「網頁」，按「發布」。</li>
-          <li>複製出現的連結，貼在下面儲存，這裡就會顯示試算表。</li>
+          <li>複製出現的連結，貼在下面，按右下角的「儲存」，這裡就會顯示試算表。</li>
         </ol>
         <label class="field"><span>發布到網路的連結</span><input type="text" id="lvSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/e/……/pubhtml"></label>
         <div class="hint" style="margin:-6px 0 10px">注意：發布到網路後，知道連結的人都看得到試算表內容。Google 發布的版本大約每 5 分鐘更新一次；上面的「最新的回覆」是即時的。</div>
         <iframe class="sheet-frame hidden" id="lvSheet" title="回覆試算表" referrerpolicy="no-referrer"></iframe>
       </form>
+      </div>
     </div>
 
     <!-- ===== 組織：測試（整頁） ===== -->
     <div id="pSim" class="panel hidden">
-      <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
+      <div class="back"><button type="button" class="btn sm ghost" data-back="data">回數據</button></div>
       <form id="simForm">
         <div class="section-head"><h2 id="simTitle">測試</h2></div>
         <div class="card">
@@ -373,7 +398,7 @@
 
     <!-- ===== 組織：寄信紀錄（整頁） ===== -->
     <div id="pNotices" class="panel hidden">
-      <div class="back"><button type="button" class="btn sm ghost" data-back="forms">回管理表單</button></div>
+      <div class="back"><button type="button" class="btn sm ghost" data-back="data">回數據</button></div>
       <div class="section-head"><h2 id="ntTitle">寄信紀錄</h2></div>
       <div class="card tbl-wrap"><table><thead><tr><th>時間</th><th>類型</th><th>順位</th><th>Email</th><th>狀態</th></tr></thead><tbody id="ntRows"></tbody></table></div>
     </div>
@@ -527,6 +552,12 @@
   <div class="dlg-foot"><button type="button" class="btn" data-close>取消</button><button class="btn primary" id="oeSave">建立</button></div>
 </form></dialog>
 
+<!-- 表單的儲存都在右下角：一次存好這一頁所有修改 -->
+<div class="savebar hidden" id="saveBar">
+  <span class="sbmsg" id="sbMsg">沒有尚未儲存的修改</span>
+  <button type="button" class="btn sm" id="sbReset" disabled>重置</button>
+  <button type="button" class="btn sm primary" id="sbSave" disabled>儲存</button>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -559,6 +590,8 @@
   function show(v, forced) {
     ['vLogin', 'vChange', 'vApp'].forEach(function (x) { $(x).classList.toggle('hidden', x !== v); });
     if (v === 'vChange') $('cpCancel').classList.toggle('hidden', !!(forced || (S.me && S.me.mustChange)));
+    if (v !== 'vApp') { $('saveBar').classList.add('hidden'); document.body.classList.remove('has-savebar'); }
+    else if (S.page) updateSaveBar();
   }
   function showErr(id, m) { $(id).textContent = m || ''; $(id).classList.toggle('hidden', !m); }
   var tt;
@@ -631,7 +664,11 @@
   }
 
   /* ---------- 網址（#org/1/home、#all/orgs）→ 頁面 ---------- */
-  function nav(h) { if (location.hash === '#' + h) return route(); location.hash = h; }
+  function nav(h) {
+    if (location.hash !== '#' + h && anyDirty() && !confirm('這一頁有尚未儲存的修改，確定要離開嗎？\n（要保留請先按右下角的「儲存」）')) return;
+    if (location.hash === '#' + h) return route(); location.hash = h;
+  }
+  window.addEventListener('beforeunload', function (e) { if (anyDirty()) { e.preventDefault(); e.returnValue = ''; } });
   window.addEventListener('hashchange', function () { if (S.me) route(); });
   function route() {
     var h = location.hash.replace(/^#/, ''), qi = h.indexOf('?'), q = qi >= 0 ? h.slice(qi + 1) : '';
@@ -651,28 +688,29 @@
     if (scope === 'all') return [['orgs', '所有組織']].concat(isOwner() ? [['settings', '平台設定']] : []);
     var t = [['home', '首頁']];
     if (canAdmin()) t.push(['users', '帳號'], ['orgsettings', '組織設定']);
-    t.push(['forms', '管理表單']);
+    t.push(['forms', '管理表單'], ['data', '數據']);
     if (isOwner()) t.push(['logs', '紀錄']);
     return t;
   }
-  var PANEL = { home: 'pHome', forms: 'pForms', form: 'pFormEdit', live: 'pLive', test: 'pSim', notices: 'pNotices', users: 'pUsers', logs: 'pLogs', orgsettings: 'pOrgSettings', orgs: 'pOrgs', settings: 'pSettings' };
-  var PARENT = { form: 'forms', live: 'forms', test: 'forms', notices: 'forms' };
+  var PANEL = { home: 'pHome', forms: 'pFormEdit', data: 'pData', test: 'pSim', notices: 'pNotices', users: 'pUsers', logs: 'pLogs', orgsettings: 'pOrgSettings', orgs: 'pOrgs', settings: 'pSettings' };
+  var PARENT = { test: 'data', notices: 'data' };
+  var ALIAS = { form: 'forms', live: 'data' }; // 舊網址
   function open(scope, page, sub) {
+    page = ALIAS[page] || page;
     var allowed = pagesFor(scope).map(function (t) { return t[0]; });
     if (allowed.indexOf(PARENT[page] || page) < 0) page = allowed[0];
-    if (scope !== S.scope) { S.forms = []; S.google = null; S.mail = null; }
+    if (scope !== S.scope) { S.forms = []; S.google = null; S.mail = null; S.lastForm = null; }
     S.scope = scope; S.page = page; S.sub = sub || null;
-    stopLive();
+    stopLive(); clearDirty();
     try { localStorage.setItem('gfl_scope', String(scope)); } catch (e) {}
     renderScope();
     $('tabs').innerHTML = pagesFor(scope).map(function (t) { return '<button class="tab' + ((PARENT[page] || page) === t[0] ? ' on' : '') + '" data-page="' + t[0] + '">' + t[1] + '</button>'; }).join('');
     document.querySelectorAll('.panel').forEach(function (el) { el.classList.toggle('hidden', el.id !== PANEL[page]); });
     window.scrollTo(0, 0);
     if (page === 'home') return loadHome();
-    if (page === 'forms') return loadForms();
-    if (page === 'form') return withForm(sub, openFormPage);
+    if (page === 'forms') return pickForm('forms', sub, openFormPage);
+    if (page === 'data') return pickForm('data', sub, openDataPage);
     if (page === 'test') return withForm(sub, openSimPage);
-    if (page === 'live') return withForm(sub, openLivePage);
     if (page === 'notices') return withForm(sub, openNoticesPage);
     if (page === 'users') return loadUsers();
     if (page === 'logs') return loadLogs(orgId(), 'logRows');
@@ -681,7 +719,7 @@
     if (page === 'settings') return loadSettings();
   }
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) nav(S.scope === 'all' ? 'all/' + b.dataset.page : 'org/' + S.scope + '/' + b.dataset.page); });
-  document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', function () { nav('org/' + S.scope + '/' + b.dataset.back); }); });
+  document.querySelectorAll('[data-back]').forEach(function (b) { b.addEventListener('click', function () { nav('org/' + S.scope + '/' + b.dataset.back + (S.sub ? '/' + S.sub : '')); }); });
   $('logo').addEventListener('click', function () { if (S.me) nav(S.scope === 'all' ? 'all/orgs' : 'org/' + S.scope + '/home'); });
   var orgPage = function (page, sub) { nav('org/' + S.scope + '/' + page + (sub ? '/' + sub : '')); };
 
@@ -696,8 +734,9 @@
   $('scopeSelect').addEventListener('change', function () {
     var v = this.value;
     if (v === 'all') return nav('all/orgs');
-    var keep = ['home', 'forms', 'users', 'logs', 'orgsettings'].indexOf(S.page) >= 0 ? S.page : (PARENT[S.page] || 'home');
+    var keep = ['home', 'forms', 'data', 'users', 'logs', 'orgsettings'].indexOf(S.page) >= 0 ? S.page : (PARENT[S.page] || 'home');
     nav('org/' + v + '/' + keep);
+    renderScope(); // 取消離開時把選單改回來
   });
 
   function withForm(id, fn) {
@@ -762,25 +801,79 @@
       return api('POST', '/api/forms', { org: orgId(), formId: id }).then(function (r) {
         S.forms.unshift(r.form);
         toast('已加入「' + r.form.title + '」，接著設定名額或時間');
-        orgPage('form', r.form.id);
+        orgPage('forms', r.form.id);
       });
     });
   });
   $('btnFolderRefresh').addEventListener('click', function () { loadHome(); });
 
-  /* ---------- 管理表單 ---------- */
-  function loadForms() {
-    if (!S.forms.length) $('formsList').innerHTML = '<div class="empty"><span class="spin"></span> 載入中…</div>';
+  /* ---------- 下拉選單選表單：管理表單、數據 都先選一份表單 ---------- */
+  function pickForm(page, sub, fn) {
+    var P = page === 'forms' ? { pick: 'fePick', body: 'feBody', empty: 'feEmpty' } : { pick: 'dtPick', body: 'dtBody', empty: 'dtEmpty' };
+    $(P.body).classList.toggle('hidden', !S.forms.length);
+    if (!S.forms.length) $(P.pick).innerHTML = '<option>載入中…</option>';
     refreshOrg();
-    return GET('/api/forms?org=' + orgId()).then(function (l) { S.forms = l; renderForms(); })
-      .catch(function (e) { $('formsList').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+    return GET('/api/forms?org=' + orgId()).then(function (l) {
+      if (S.page !== page) return;
+      S.forms = l;
+      $('feCount').textContent = $('formsCount').textContent = l.length ? '共 ' + l.length + ' 份' : '';
+      $(P.empty).classList.toggle('hidden', !!l.length); $(P.body).classList.toggle('hidden', !l.length);
+      $(P.pick).disabled = !l.length;
+      if (!l.length) { $(P.pick).innerHTML = '<option>還沒有表單</option>'; updateSaveBar(); return; }
+      var has = function (id) { return l.some(function (x) { return x.id === id; }); };
+      var id = has(sub) ? sub : has(S.lastForm) ? S.lastForm : l[0].id;
+      S.lastForm = id; S.sub = id;
+      if (id !== sub) history.replaceState(null, '', '#org/' + S.scope + '/' + page + '/' + id);
+      fillPicker(P.pick, id);
+      updateSaveBar();
+      return fn(l.filter(function (x) { return x.id === id; })[0]);
+    }).catch(function (e) { toast(e.message, true); });
   }
-  /* 電池樣式：count/limit，依比例填色（綠 < 70%、黃 70–99%、紅 額滿） */
+  function fillPicker(sel, id) {
+    $(sel).innerHTML = S.forms.map(function (f) { return '<option value="' + f.id + '">' + esc(f.title) + '（' + esc(statusOf(f).t) + '）</option>'; }).join('');
+    $(sel).value = String(id);
+  }
+  $('fePick').addEventListener('change', function () { var v = this.value; fillPicker('fePick', S.sub); orgPage('forms', v); });
+  $('dtPick').addEventListener('change', function () { var v = this.value; fillPicker('dtPick', S.sub); orgPage('data', v); });
+
+  /* ---------- 右下角的儲存：這一頁所有尚未儲存的修改 ---------- */
+  S.dirty = {};
+  function setDirty(k, on) { if (on) S.dirty[k] = true; else delete S.dirty[k]; updateSaveBar(); }
+  function dirtyQs() { return Object.keys(S.qDraft || {}).filter(function (k) { return S.qDraft[k].dirty; }); }
+  function anyDirty() { return Object.keys(S.dirty || {}).length > 0 || dirtyQs().length > 0; }
+  function clearDirty() { S.dirty = {}; S.qDraft = {}; updateSaveBar(); }
+  function updateSaveBar() {
+    var on = (S.page === 'forms' || S.page === 'data') && !!S.forms.length && !!S.me;
+    $('saveBar').classList.toggle('hidden', !on); document.body.classList.toggle('has-savebar', on);
+    if (!on) return;
+    var names = [];
+    if (S.dirty.basic) names.push('名額與時間');
+    dirtyQs().forEach(function (k) { names.push(S.qDraft[k].title || '題目'); });
+    if (S.dirty.notify) names.push('寄信通知');
+    if (S.dirty.sheet) names.push('回覆試算表');
+    $('saveBar').classList.toggle('dirty', !!names.length);
+    $('sbMsg').textContent = names.length ? '尚未儲存：' + names.join('、') : '沒有尚未儲存的修改';
+    $('sbMsg').title = $('sbMsg').textContent;
+    if (!$('sbSave').classList.contains('busy')) { $('sbSave').disabled = !names.length; $('sbReset').disabled = !names.length; }
+  }
+  $('sbReset').addEventListener('click', function () {
+    showErr('feErr', '');
+    if (S.page === 'data') { var f = S.forms.filter(function (x) { return x.id === S.liveId; })[0]; if (f) fillSheet(f); return; }
+    var cur = curForm(); if (!cur) return;
+    fillBasic(cur); fillNotify(cur);
+    if (S.qStruct) { dirtyQs().forEach(function (k) { S.qDraft[k] = draftOf(findQ(k)); }); renderQuotaQuestions(); }
+    updateSaveBar();
+  });
+  $('sbSave').addEventListener('click', function () { S.page === 'data' ? saveSheet() : saveAll(); });
+
+  /* ---------- 數據：選一份表單，看名額、選項和即時動態 ---------- */
+  function openDataPage(f) { S.dataId = f.id; renderForms(); return openLivePage(f); }
+  /* 電池樣式：依比例填色（綠 < 70%、黃 70–99%、紅 額滿），顯示「目前（max:上限）」 */
   function battery(count, limit, label, note) {
     var p = limit > 0 ? Math.min(100, Math.round(count / limit * 100)) : 100;
     var c = count >= limit ? 'r' : p >= 70 ? 'y' : 'g';
-    return '<span class="bat ' + c + '" title="' + count + ' / ' + limit + '（' + p + '%）"><i style="width:' + p + '%"></i><span>' +
-      (label ? label + ' ' : '') + '<b>' + count + '/' + limit + '</b>' + (note ? ' <span class="gone">' + note + '</span>' : '') + '</span></span>';
+    return '<span class="bat ' + c + '" title="目前 ' + count + '，上限 ' + limit + '（' + p + '%）"><i style="width:' + p + '%"></i><span>' +
+      (label ? label + ' ' : '') + '<b>' + count + '</b>（max:' + limit + '）' + (note ? ' <span class="gone">' + note + '</span>' : '') + '</span></span>';
   }
   function statusOf(f) {
     if (f.state === 'open') return { c: 'open', t: '開放中' };
@@ -788,70 +881,67 @@
     return { c: 'unknown', t: '尚未檢查' };
   }
   function renderForms() {
-    $('formsCount').textContent = S.forms.length ? '共 ' + S.forms.length + ' 份' : '';
-    if (!S.forms.length) { $('formsList').innerHTML = '<div class="empty card">還沒有表單。到「首頁」把資料夾裡的表單加入管理。</div>'; return; }
-    $('formsList').innerHTML = S.forms.map(function (f) {
-      var st = statusOf(f), cnt = f.count == null ? '–' : f.count;
-      var pct = f.maxResponses && f.count != null ? Math.min(100, Math.round(f.count / f.maxResponses * 100)) : 0;
-      var notes = (f.lastError ? '<div class="note bad">' + esc(f.lastError) + '</div>' : '') +
-        (f.manualClosed ? '<div class="note warn">已手動關閉：按「開放」才會恢復自動規則。</div>' : '');
-      return '<article class="fcard" data-id="' + f.id + '">' +
-        '<div class="row"><h3 style="flex:1">' + esc(f.title) + '</h3><span class="pill ' + st.c + '">' + esc(st.t) + '</span></div>' +
-        (f.maxResponses
-          ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : pct >= 70 ? ' y' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
-          : '<div class="small" style="margin-top:10px">目前 <b>' + cnt + '</b> 份・不限名額</div>') +
-        '<div class="facts"><div><span>開放</span>' + (fmt(f.openAt) || '立即') + '</div><div><span>截止</span>' + (fmt(f.closeAt) || '不截止') + '</div><div><span>上次檢查</span>' + (fmt(f.lastCheck) || '–') + '</div></div>' +
-        (f.optionQuotas && f.optionQuotas.length ? f.optionQuotas.map(function (q) {
-          return '<div class="qsum"><b>' + esc(q.title) + '</b>' + q.options.map(function (o) {
-            return battery(o.count, o.limit, esc(o.value), o.hidden ? '已移除' : '');
-          }).join('') + '</div>';
-        }).join('') : '') +
-        (f.notify.enabled ? '<div class="small" style="margin-bottom:10px">名額已滿通知：已寄候補 <b>' + f.notify.stats.waitlist + '</b>、遞補 <b>' + f.notify.stats.promoted + '</b>' +
-          (f.notify.stats.failed ? '、<span style="color:var(--bad)">失敗 ' + f.notify.stats.failed + '</span>' : '') + (f.notify.stats.skipped ? '、沒有 Email ' + f.notify.stats.skipped : '') +
-          ' <button class="btn sm ghost" data-act="notices">寄信紀錄</button></div>' : '') +
-        (f.responderUrl ? '<div class="linkbox"><b>填寫連結</b><span>' + esc(f.responderUrl) + '</span><button class="btn sm" data-act="copylink">複製</button></div>' : '') +
-        notes +
-        '<div class="actions">' +
-          '<button class="btn sm primary" data-act="edit">設定</button>' +
-          (f.manualClosed ? '<button class="btn sm" data-act="open">開放</button>' : '<button class="btn sm" data-act="close">立即關閉</button>') +
-          '<button class="btn sm" data-act="check">檢查</button>' +
-          '<button class="btn sm" data-act="live">即時動態</button>' +
-          '<button class="btn sm" data-act="sim">測試</button>' +
-          '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單／看回覆</a>' +
-          '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
-        '</div></article>';
-    }).join('');
+    var f = S.forms.filter(function (x) { return x.id === S.dataId; })[0];
+    if (!f) { $('formsList').innerHTML = ''; return; }
+    var st = statusOf(f), cnt = f.count == null ? '–' : f.count;
+    var pct = f.maxResponses && f.count != null ? Math.min(100, Math.round(f.count / f.maxResponses * 100)) : 0;
+    var notes = (f.lastError ? '<div class="note bad">' + esc(f.lastError) + '</div>' : '') +
+      (f.manualClosed ? '<div class="note warn">已手動關閉：按「開放」才會恢復自動規則。</div>' : '');
+    $('formsList').innerHTML = '<article class="fcard" data-id="' + f.id + '">' +
+      '<div class="row"><h3 style="flex:1">' + esc(f.title) + '</h3><span class="pill ' + st.c + '">' + esc(st.t) + '</span></div>' +
+      (f.maxResponses
+        ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : pct >= 70 ? ' y' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> 份（max:' + f.maxResponses + '）' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
+        : '<div class="small" style="margin-top:10px">目前 <b>' + cnt + '</b> 份・不限名額</div>') +
+      '<div class="facts"><div><span>開放</span>' + (fmt(f.openAt) || '立即') + '</div><div><span>截止</span>' + (fmt(f.closeAt) || '不截止') + '</div><div><span>上次檢查</span>' + (fmt(f.lastCheck) || '–') + '</div></div>' +
+      (f.optionQuotas && f.optionQuotas.length ? f.optionQuotas.map(function (q) {
+        return '<div class="qsum"><b>' + esc(q.title) + '</b>' + q.options.map(function (o) {
+          return battery(o.count, o.limit, esc(o.value), o.hidden ? '已移除' : '');
+        }).join('') + '</div>';
+      }).join('') : '') +
+      (f.notify.enabled ? '<div class="small" style="margin-bottom:10px">名額已滿通知：已寄候補 <b>' + f.notify.stats.waitlist + '</b>、遞補 <b>' + f.notify.stats.promoted + '</b>' +
+        (f.notify.stats.failed ? '、<span style="color:var(--bad)">失敗 ' + f.notify.stats.failed + '</span>' : '') + (f.notify.stats.skipped ? '、沒有 Email ' + f.notify.stats.skipped : '') +
+        ' <button class="btn sm ghost" data-act="notices">寄信紀錄</button></div>' : '') +
+      (f.responderUrl ? '<div class="linkbox"><b>填寫連結</b><span>' + esc(f.responderUrl) + '</span><button class="btn sm" data-act="copylink">複製</button></div>' : '') +
+      notes +
+      '<div class="actions">' +
+        '<button class="btn sm primary" data-act="edit">設定這份表單</button>' +
+        (f.manualClosed ? '<button class="btn sm" data-act="open">開放</button>' : '<button class="btn sm" data-act="close">立即關閉</button>') +
+        '<button class="btn sm" data-act="check">重新檢查</button>' +
+        '<button class="btn sm" data-act="sim">測試</button>' +
+        '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單／看回覆</a>' +
+        '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
+      '</div></article>';
   }
-  function replaceForm(f) { S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; }); if (S.page === 'forms') renderForms(); }
+  function replaceForm(f) {
+    S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; });
+    if (S.page === 'data') { renderForms(); fillPicker('dtPick', S.sub); }
+    if (S.page === 'forms') fillPicker('fePick', S.sub);
+  }
   $('formsList').addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b || b.tagName === 'A') return;
     var id = Number(b.closest('.fcard').dataset.id), f = S.forms.filter(function (x) { return x.id === id; })[0], act = b.dataset.act;
     if (act === 'copylink') { copy(f.responderUrl); return toast('已複製填寫連結'); }
-    if (act === 'edit') return orgPage('form', id);
+    if (act === 'edit') return orgPage('forms', id);
     if (act === 'notices') return orgPage('notices', id);
     if (act === 'sim') return orgPage('test', id);
-    if (act === 'live') return orgPage('live', id);
-    if (act === 'check') return run(b, '檢查中', function () { return api('POST', '/api/forms/' + id + '/check').then(function (r) { replaceForm(r.form); }); });
+    if (act === 'check') return run(b, '檢查中', function () { return api('POST', '/api/forms/' + id + '/check').then(function (r) { replaceForm(r.form); loadLive(); }); });
     if (act === 'close') { if (!confirm('確定立即關閉「' + f.title + '」？\n之後要按「開放」才會恢復。')) return;
       return run(b, '關閉中', function () { return api('POST', '/api/forms/' + id + '/open', { open: false }).then(function (r) { replaceForm(r.form); toast('已關閉'); }); }); }
     if (act === 'open') return run(b, '開放中', function () { return api('POST', '/api/forms/' + id + '/open', { open: true }).then(function (r) {
       replaceForm(r.form); toast(r.form.state === 'open' ? '已開放' : '已取消手動關閉，但目前「' + r.form.reasonText + '」，仍是關閉狀態', r.form.state !== 'open'); }); });
     if (act === 'remove') { if (!confirm('把「' + f.title + '」移出管理？\n表單會留在雲端硬碟、維持目前的開關狀態，之後不再自動開關。')) return;
-      return run(b, '移除中', function () { return api('DELETE', '/api/forms/' + id).then(function () { S.forms = S.forms.filter(function (x) { return x.id !== id; }); renderForms(); toast('已移出管理'); }); }); }
-  });
-  $('btnCheckAll').addEventListener('click', function () {
-    run($('btnCheckAll'), '檢查中', function () { return api('POST', '/api/forms/check-all', { org: orgId() }).then(function (l) { S.forms = l; renderForms(); toast('已重新檢查'); }); });
+      return run(b, '移除中', function () { return api('DELETE', '/api/forms/' + id).then(function () {
+        S.forms = S.forms.filter(function (x) { return x.id !== id; }); S.lastForm = null; toast('已移出管理'); orgPage('data'); }); }); }
   });
 
-  /* ---------- 表單設定（整頁）：名額與時間、選項與名額、寄信通知，各自儲存 ---------- */
+  /* ---------- 管理表單：名額與時間、段落（選項與名額）、寄信通知；儲存都在右下角 ---------- */
   var TPL = ['waitlistSubject', 'waitlistBody', 'promoteSubject', 'promoteBody'], TPL_EL = { waitlistSubject: 'feWS', waitlistBody: 'feWB', promoteSubject: 'fePS', promoteBody: 'fePB' };
   var curForm = function () { return S.forms.filter(function (x) { return x.id === S.editing; })[0]; };
-  function setDirty(k, on) { var el = document.querySelector('[data-dirty="' + k + '"]'); if (el) el.classList.toggle('hidden', !on); }
   function openFormPage(f) {
     S.editing = f.id; showErr('feErr', '');
     $('feTitle').textContent = f.title;
     $('feOpenForm').href = f.editUrl || '#';
-    $('feLive').onclick = function () { orgPage('live', f.id); };
+    $('feLive').onclick = function () { orgPage('data', f.id); };
     fillBasic(f); fillNotify(f);
     loadQuotaEditor(f);
     $('feMailOff').classList.add('hidden');
@@ -888,30 +978,40 @@
   $('feBasic').addEventListener('input', function () { setDirty('basic', true); });
   $('feNotifyForm').addEventListener('input', function () { setDirty('notify', true); });
   $('feNotifyForm').addEventListener('change', function () { setDirty('notify', true); });
-  document.querySelectorAll('[data-reset]').forEach(function (b) { b.addEventListener('click', function () {
-    var f = curForm(); if (!f) return;
-    if (b.dataset.reset === 'basic') fillBasic(f); else fillNotify(f);
-    showErr('feErr', '');
-  }); });
-  function saveForm(btn, body, key) {
-    showErr('feErr', '');
-    return run(btn, '儲存中', function () {
-      return api('PATCH', '/api/forms/' + S.editing, body).then(function (r) {
-        replaceForm(r.form); setDirty(key, false); toast('已儲存，目前狀態：' + statusOf(r.form).t);
-      }).catch(function (e) { showErr('feErr', e.message); window.scrollTo(0, 0); throw e; });
-    }).catch(function () {});
-  }
-  $('feBasic').addEventListener('submit', function (e) {
-    e.preventDefault();
-    saveForm($('feBasicSave'), { maxResponses: $('feMax').value, openAt: fromLocalInput($('feOpen').value), closeAt: fromLocalInput($('feClose').value) }, 'basic');
-  });
-  $('feNotifyForm').addEventListener('submit', function (e) {
-    e.preventDefault();
+  // 在輸入框按 Enter 也是存全部
+  $('feBasic').addEventListener('submit', function (e) { e.preventDefault(); saveAll(); });
+  $('feNotifyForm').addEventListener('submit', function (e) { e.preventDefault(); saveAll(); });
+  function basicBody() { return { maxResponses: $('feMax').value, openAt: fromLocalInput($('feOpen').value), closeAt: fromLocalInput($('feClose').value) }; }
+  function notifyBody() {
     var body = { notifyEnabled: $('feNotify').checked, notifySource: $('feSource').value };
     // 跟預設內容一樣就存空白（之後預設內容更新時會跟著更新）
     TPL.forEach(function (k) { var v = $(TPL_EL[k]).value; body[k] = v.trim() === String(S.templates[k] || '').trim() ? '' : v; });
-    saveForm($('feNotifySave'), body, 'notify');
-  });
+    return body;
+  }
+  function qBody(d) { return { title: d.title, options: d.options.map(function (o) { return { value: o.value, from: o.from, limit: o.limit }; }) }; }
+  // 依序存：名額與時間 → 每一題 → 寄信通知；有一個失敗就停下來，已存好的不會再存
+  function saveAll() {
+    if (!anyDirty() || $('sbSave').classList.contains('busy')) return;
+    var id = S.editing, steps = [], last = null, qChanged = false;
+    if (S.dirty.basic) steps.push(function () { return api('PATCH', '/api/forms/' + id, basicBody()).then(function (r) { last = r.form; setDirty('basic', false); }); });
+    dirtyQs().forEach(function (qid) {
+      steps.push(function () { var d = S.qDraft[qid];
+        return api('PUT', '/api/forms/' + id + '/questions/' + encodeURIComponent(qid), qBody(d)).then(function (r) { last = r.form; d.dirty = false; qChanged = true; updateSaveBar(); })
+          .catch(function (e) { throw new Error('「' + d.title + '」：' + e.message); }); });
+    });
+    if (S.dirty.notify) steps.push(function () { return api('PATCH', '/api/forms/' + id, notifyBody()).then(function (r) { last = r.form; setDirty('notify', false); }); });
+    showErr('feErr', '');
+    $('sbSave').classList.add('busy'); busy($('sbSave'), true, '儲存中'); $('sbReset').disabled = true;
+    var p = Promise.resolve();
+    steps.forEach(function (s) { p = p.then(s); });
+    return p.then(function () { toast('已儲存' + (last ? '，目前狀態：' + statusOf(last).t : '')); })
+      .catch(function (e) { showErr('feErr', e.message); toast('儲存失敗：' + e.message, true); window.scrollTo(0, 0); })
+      .finally(function () {
+        if (last) replaceForm(last);
+        $('sbSave').classList.remove('busy'); busy($('sbSave'), false); updateSaveBar();
+        if (qChanged && S.editing === id) loadQuotaEditor(curForm());
+      });
+  }
   // 插入欄位：插到最後點過的那一格的游標位置
   var lastTpl = null;
   document.querySelectorAll('.tplf').forEach(function (el) { el.addEventListener('focus', function () { lastTpl = el; }); });
@@ -927,93 +1027,149 @@
   }); });
   $('feTplDefault').addEventListener('click', function () { TPL.forEach(function (k) { $(TPL_EL[k]).value = S.templates[k] || ''; }); setDirty('notify', true); });
 
-  /* 選項與名額：每一題各自儲存（題目名稱、選項名稱、新增／刪除／排序、名額） */
+  /* 段落下拉選單：第 1 段、第 2 段…，最後一項是「名額已滿時寄信通知」 */
   function loadQuotaEditor(f) {
+    var keep = S.qStruct && S.qStruct.formId === f.id ? $('feSection').value : '';
+    var keepDrafts = {}; // 重新讀取時保留還沒存的題目
+    Object.keys(S.qDraft || {}).forEach(function (k) { if (S.qDraft[k].dirty) keepDrafts[k] = S.qDraft[k]; });
+    if (!keep) keepDrafts = {};
     S.qStruct = null; S.qDraft = {};
     $('feQLoading').classList.remove('hidden'); $('feQLoading').innerHTML = '<span class="spin"></span> 讀取表單題目中…';
-    $('feQBox').classList.add('hidden');
+    $('feQBox').classList.add('hidden'); $('feNotifyForm').classList.add('hidden');
     return GET('/api/forms/' + f.id + '/structure').then(function (st) {
       if (S.editing !== f.id) return;
-      S.qStruct = st;
-      st.sections.forEach(function (sec) { sec.questions.forEach(function (q) { S.qDraft[q.questionId] = draftOf(q); }); });
+      st.formId = f.id; S.qStruct = st;
+      st.sections.forEach(function (sec) { sec.questions.forEach(function (q) { S.qDraft[q.questionId] = keepDrafts[q.questionId] || draftOf(q); }); });
       var withQ = st.sections.filter(function (sec) { return sec.questions.length; });
-      if (!withQ.length) { $('feQLoading').textContent = '這份表單沒有單選、多選或下拉題，無法設定選項名額；下面仍可設定寄信通知。'; return; }
-      var keep = $('feSection').value;
       $('feSection').innerHTML = st.sections.map(function (sec) {
         var used = sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); });
         return '<option value="' + sec.index + '"' + (sec.questions.length ? '' : ' disabled') + '>第 ' + sec.index + ' 段：' + esc(sec.title) + '（' + sec.questions.length + ' 題選擇題' + (used ? '・已設名額' : '') + '）</option>';
-      }).join('');
-      // 預設最後一段（寄信通知也在這裡）；剛儲存過就留在原本的段落
-      var first = withQ.filter(function (sec) { return String(sec.index) === keep; })[0] || withQ[withQ.length - 1];
-      $('feSection').value = first.index;
-      renderQuotaQuestions();
+      }).join('') + '<option value="notify">名額已滿時寄信通知' + ((curForm() || f).notify.enabled ? '（已開啟）' : '') + '</option>';
+      $('feQNone').classList.toggle('hidden', !!withQ.length);
+      // 預設最後一段；剛儲存過就留在原本的選項
+      var ok = keep === 'notify' || withQ.some(function (sec) { return String(sec.index) === keep; });
+      $('feSection').value = ok ? keep : withQ.length ? String(withQ[withQ.length - 1].index) : 'notify';
+      showSection();
       $('feQLoading').classList.add('hidden'); $('feQBox').classList.remove('hidden');
+      updateSaveBar();
     }).catch(function (e) { $('feQLoading').textContent = '讀不到表單題目：' + e.message; });
+  }
+  function showSection() {
+    var notify = $('feSection').value === 'notify';
+    $('feNotifyForm').classList.toggle('hidden', !notify);
+    $('feQuestions').classList.toggle('hidden', notify);
+    if (!notify) renderQuotaQuestions(); else $('feQuestions').innerHTML = '';
   }
   function draftOf(q) {
     return { title: q.title, dirty: false, options: q.options.map(function (o) { return { value: o.value, from: o.value, count: o.count, hidden: o.hidden, limit: o.limit == null ? '' : String(o.limit) }; }) };
   }
   function findQ(qid) { var out = null; S.qStruct.sections.forEach(function (sec) { sec.questions.forEach(function (q) { if (q.questionId === qid) out = q; }); }); return out; }
+  function hasLimit(o) { return String(o.limit).trim() !== '' && !isNaN(Number(o.limit)); }
+  function cntCell(o) {
+    if (o.from == null) return '<span class="tag brand">新</span>';
+    return (hasLimit(o) ? battery(o.count, Number(o.limit), '', '') : '<b>' + o.count + '</b>（不限）') + (o.hidden ? '<div><span class="tag off">已額滿移除</span></div>' : '');
+  }
   function renderQuotaQuestions() {
-    var sec = S.qStruct.sections.filter(function (x) { return String(x.index) === $('feSection').value; })[0];
+    var sec = S.qStruct && S.qStruct.sections.filter(function (x) { return String(x.index) === $('feSection').value; })[0];
+    if (!sec) { $('feQuestions').innerHTML = ''; return; }
     $('feQuestions').innerHTML = sec.questions.map(function (q) {
       var d = S.qDraft[q.questionId];
       return '<div class="qblock" data-q="' + esc(q.questionId) + '">' +
         '<div class="section-head"><input type="text" class="qtitle" data-f="title" value="' + esc(d.title) + '"><span class="tag">' + q.typeText + '</span>' +
-          (q.hasOther ? '<span class="tag">有「其他」，不限額</span>' : '') + '<span class="dirty-dot' + (d.dirty ? '' : ' hidden') + '">尚未儲存</span>' +
-          '<div class="right"><button type="button" class="btn sm" data-qa="reset">重置</button><button type="button" class="btn sm primary" data-qa="save">儲存</button></div></div>' +
-        '<div class="optrow head"><span>選項名稱</span><span class="cnt">目前</span><span>名額</span><span class="ops"></span></div>' +
-        d.options.map(function (o, i) {
-          return '<div class="optrow" data-i="' + i + '"><input type="text" data-f="value" value="' + esc(o.value) + '" placeholder="選項名稱">' +
-            '<span class="cnt">' + (o.from == null ? '新' : String(o.limit).trim() !== '' && !isNaN(Number(o.limit)) ? battery(o.count, Number(o.limit), '', '') : o.count) + (o.hidden ? '<div><span class="tag off">已額滿移除</span></div>' : '') + '</span>' +
+          (q.hasOther ? '<span class="tag">有「其他」，不限額</span>' : '') + '<span class="dirty-dot' + (d.dirty ? '' : ' hidden') + '">尚未儲存</span></div>' +
+        '<div class="optrow head"><span></span><span>選項名稱</span><span class="cnt">目前</span><span>名額</span><span class="ops"></span></div>' +
+        '<div class="opts">' + d.options.map(function (o, i) {
+          return '<div class="optrow" data-i="' + i + '"><button type="button" class="grip" title="按住拖拽移動順序（也可以用鍵盤上下鍵）" aria-label="移動「' + esc(o.value) + '」的順序">⠿</button>' +
+            '<input type="text" data-f="value" value="' + esc(o.value) + '" placeholder="選項名稱">' +
+            '<span class="cnt">' + cntCell(o) + '</span>' +
             '<input type="number" min="0" step="1" data-f="limit" placeholder="不限" value="' + esc(o.limit) + '">' +
-            '<span class="ops"><button type="button" class="btn" data-qa="up"' + (i ? '' : ' disabled') + '>上移</button><button type="button" class="btn" data-qa="down"' + (i < d.options.length - 1 ? '' : ' disabled') + '>下移</button><button type="button" class="btn danger" data-qa="del">刪除</button></span></div>';
-        }).join('') +
+            '<span class="ops"><button type="button" class="btn danger" data-qa="del">刪除</button></span></div>';
+        }).join('') + '</div>' +
         '<div style="margin-top:10px"><button type="button" class="btn sm" data-qa="add">新增選項</button></div></div>';
     }).join('');
   }
-  $('feSection').addEventListener('change', renderQuotaQuestions);
+  function markQ(blk, d) { d.dirty = true; blk.querySelector('.dirty-dot').classList.remove('hidden'); updateSaveBar(); }
+  $('feSection').addEventListener('change', showSection);
   $('feQuestions').addEventListener('input', function (e) {
     var el = e.target, blk = el.closest('.qblock'); if (!blk || !el.dataset.f) return;
     var d = S.qDraft[blk.dataset.q];
     if (el.dataset.f === 'title') d.title = el.value;
-    else d.options[Number(el.closest('.optrow').dataset.i)][el.dataset.f] = el.value;
-    d.dirty = true; blk.querySelector('.dirty-dot').classList.remove('hidden');
+    else {
+      var row = el.closest('.optrow'), o = d.options[Number(row.dataset.i)];
+      o[el.dataset.f] = el.value;
+      if (el.dataset.f === 'limit') row.querySelector('.cnt').innerHTML = cntCell(o);
+    }
+    markQ(blk, d);
   });
   $('feQuestions').addEventListener('click', function (e) {
     var b = e.target.closest('[data-qa]'); if (!b) return;
     var blk = b.closest('.qblock'), qid = blk.dataset.q, d = S.qDraft[qid], act = b.dataset.qa;
     var row = b.closest('.optrow'), i = row ? Number(row.dataset.i) : -1;
-    if (act === 'reset') { S.qDraft[qid] = draftOf(findQ(qid)); showErr('feErr', ''); return renderQuotaQuestions(); }
-    if (act === 'save') return saveQuestion(b, qid);
     if (act === 'add') { d.options.push({ value: '', from: null, count: 0, hidden: false, limit: '' }); }
     if (act === 'del') {
       var o = d.options[i];
       if (o.from != null && o.count && !confirm('「' + o.value + '」已經有 ' + o.count + ' 人選了，刪除後他們的回覆還在，但不會再算名額。確定刪除？')) return;
       d.options.splice(i, 1);
     }
-    if (act === 'up' && i > 0) d.options.splice(i - 1, 0, d.options.splice(i, 1)[0]);
-    if (act === 'down' && i < d.options.length - 1) d.options.splice(i + 1, 0, d.options.splice(i, 1)[0]);
-    d.dirty = true; renderQuotaQuestions();
+    d.dirty = true; renderQuotaQuestions(); updateSaveBar();
     if (act === 'add') { var ins = $('feQuestions').querySelectorAll('.qblock[data-q="' + qid + '"] .optrow input[data-f=value]'); if (ins.length) ins[ins.length - 1].focus(); }
   });
-  function saveQuestion(btn, qid) {
-    var d = S.qDraft[qid]; showErr('feErr', '');
-    var body = { title: d.title, options: d.options.map(function (o) { return { value: o.value, from: o.from, limit: o.limit }; }) };
-    return run(btn, '儲存中', function () {
-      return api('PUT', '/api/forms/' + S.editing + '/questions/' + encodeURIComponent(qid), body).then(function (r) {
-        replaceForm(r.form); toast('已更新 Google 表單的「' + d.title + '」，目前狀態：' + statusOf(r.form).t);
-        return loadQuotaEditor(r.form);
-      }).catch(function (e) { showErr('feErr', e.message); window.scrollTo(0, 0); throw e; });
-    }).catch(function () {});
+  // 拖拽排序：按住把手上下拖，放開後依畫面上的順序更新（滑鼠、觸控都可以）
+  function commitOrder(blk, focusFrom) {
+    var d = S.qDraft[blk.dataset.q];
+    var order = Array.prototype.map.call(blk.querySelectorAll('.opts .optrow'), function (r) { return Number(r.dataset.i); });
+    var moved = order.some(function (v, k) { return v !== k; });
+    if (!moved) return;
+    d.options = order.map(function (k) { return d.options[k]; });
+    d.dirty = true; renderQuotaQuestions(); updateSaveBar();
+    if (focusFrom != null) {
+      var g = $('feQuestions').querySelectorAll('.qblock[data-q="' + blk.dataset.q + '"] .opts .grip')[order.indexOf(focusFrom)];
+      if (g) g.focus();
+    }
   }
+  $('feQuestions').addEventListener('pointerdown', function (e) {
+    var g = e.target.closest('.grip'); if (!g || e.button > 0) return;
+    e.preventDefault();
+    var row = g.closest('.optrow'), list = row.parentNode, blk = row.closest('.qblock');
+    var startY = e.clientY, base = row.getBoundingClientRect().top, started = false;
+    try { g.setPointerCapture(e.pointerId); } catch (x) {}
+    function move(ev) {
+      if (!started && Math.abs(ev.clientY - startY) < 3) return;
+      if (!started) { started = true; row.classList.add('dragging'); document.body.classList.add('dragging-opt'); }
+      // 靠近視窗上下緣時自動捲動
+      if (ev.clientY < 70) window.scrollBy(0, -14); else if (ev.clientY > innerHeight - 90) window.scrollBy(0, 14);
+      // 算出要放的位置；移動的是旁邊的列，拖著的這一列不離開 DOM（才不會失去 pointer capture）
+      var others = Array.prototype.filter.call(list.children, function (r) { return r !== row; }), idx = others.length;
+      for (var k = 0; k < others.length; k++) { var rc = others[k].getBoundingClientRect(); if (ev.clientY < rc.top + rc.height / 2) { idx = k; break; } }
+      var cur = Array.prototype.indexOf.call(list.children, row);
+      while (cur > idx) { list.insertBefore(row.previousElementSibling, row.nextElementSibling); cur--; }
+      while (cur < idx) { list.insertBefore(row.nextElementSibling, row); cur++; }
+    }
+    function up() {
+      g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up);
+      row.classList.remove('dragging'); document.body.classList.remove('dragging-opt');
+      if (started) commitOrder(blk);
+    }
+    if (g.hasPointerCapture && g.hasPointerCapture(e.pointerId)) { g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up); }
+    else { window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); }
+  });
+  // 鍵盤：焦點在把手上時按上下鍵移動
+  $('feQuestions').addEventListener('keydown', function (e) {
+    var g = e.target.closest('.grip'); if (!g || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    var row = g.closest('.optrow'), list = row.parentNode, blk = row.closest('.qblock'), from = Number(row.dataset.i);
+    if (e.key === 'ArrowUp' && row.previousElementSibling) list.insertBefore(row, row.previousElementSibling);
+    else if (e.key === 'ArrowDown' && row.nextElementSibling) list.insertBefore(row.nextElementSibling, row);
+    commitOrder(blk, from);
+  });
 
   /* ---------- 即時動態（整頁）：最新回覆、每小時送出數、回覆試算表 ---------- */
   var liveTimer = null, liveSeen = null;
   function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
   function openLivePage(f) {
     S.liveId = f.id; liveSeen = null;
-    $('lvTitle').textContent = '即時動態・' + f.title;
+    $('lvTitle').textContent = '即時動態';
     $('lvRows').innerHTML = '<tr><td class="muted"><span class="spin"></span> 讀取回覆中…</td></tr>'; $('lvHead').innerHTML = '';
     fillSheet(f);
     stopLive();
@@ -1022,13 +1178,13 @@
   }
   $('lvAuto').addEventListener('change', function () {
     stopLive();
-    if (this.checked && S.page === 'live') liveTimer = setInterval(function () { if (!document.hidden) loadLive(); }, 20000);
+    if (this.checked && S.page === 'data') liveTimer = setInterval(function () { if (!document.hidden) loadLive(); }, 20000);
   });
   $('lvRefresh').addEventListener('click', function () { run($('lvRefresh'), '更新中', loadLive); });
   function loadLive() {
     var id = S.liveId;
     return GET('/api/forms/' + id + '/activity').then(function (d) {
-      if (S.page !== 'live' || S.liveId !== id) return;
+      if (S.page !== 'data' || S.liveId !== id) return;
       $('lvErr').classList.add('hidden');
       $('lvAt').textContent = '更新時間 ' + fmt(d.at) + (liveTimer ? '・每 20 秒自動更新' : '');
       var now = Date.now(), day0 = new Date(); day0.setHours(0, 0, 0, 0);
@@ -1036,7 +1192,7 @@
       var hour = d.recentTimes.filter(function (t) { return t >= now - 3600e3; }).length;
       var wait = d.items.filter(function (x) { return x.waitlist; }).length;
       $('lvStats').innerHTML = [['總回覆', d.total], ['今天', today], ['最近 1 小時', hour],
-        ['名額', d.maxResponses ? '剩 ' + Math.max(0, d.maxResponses - d.total) + ' / ' + d.maxResponses : '不限'], ['候補（最近 100 筆）', wait]]
+        ['名額', d.maxResponses ? '剩 ' + Math.max(0, d.maxResponses - d.total) + '（max:' + d.maxResponses + '）' : '不限'], ['候補（最近 100 筆）', wait]]
         .map(function (x) { return '<div class="stat"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('');
       // 最近 24 小時，每小時一格
       var buckets = []; for (var i = 23; i >= 0; i--) buckets.push(0);
@@ -1070,15 +1226,15 @@
     setDirty('sheet', false);
   }
   $('lvSheetUrl').addEventListener('input', function () { setDirty('sheet', true); });
-  $('lvSheetReset').addEventListener('click', function () { var f = S.forms.filter(function (x) { return x.id === S.liveId; })[0]; if (f) fillSheet(f); });
-  $('lvSheetForm').addEventListener('submit', function (e) {
-    e.preventDefault();
-    run($('lvSheetSave'), '儲存中', function () {
+  $('lvSheetForm').addEventListener('submit', function (e) { e.preventDefault(); saveSheet(); });
+  function saveSheet() {
+    if (!S.dirty.sheet) return;
+    run($('sbSave'), '儲存中', function () {
       return api('PATCH', '/api/forms/' + S.liveId, { sheetUrl: $('lvSheetUrl').value }).then(function (r) {
         replaceForm(r.form); fillSheet(r.form); toast(r.form.sheetUrl ? '已儲存，下面會顯示試算表' : '已移除試算表');
       });
-    });
-  });
+    }).finally(updateSaveBar);
+  }
 
   /* ---------- 寄信紀錄（整頁） ---------- */
   function openNoticesPage(f) {
@@ -1106,7 +1262,7 @@
       if (!qs.length) { $('simChoices').innerHTML = '<div class="note warn">這份表單還沒設定選項名額，模擬時只會檢查總名額。</div>'; return; }
       $('simChoices').innerHTML = qs.map(function (x) {
         return '<label class="field"><span>第 ' + x.sec.index + ' 段・' + esc(x.q.title) + '</span><select data-q="' + esc(x.q.questionId) + '">' +
-          x.q.options.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.value) + '（' + o.count + (o.limit != null ? '/' + o.limit : '') + (o.hidden ? '・已移除' : '') + '）</option>'; }).join('') + '</select></label>';
+          x.q.options.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.value) + '（目前 ' + o.count + (o.limit != null ? '，max:' + o.limit : '') + (o.hidden ? '・已移除' : '') + '）</option>'; }).join('') + '</select></label>';
       }).join('');
     }).catch(function (e) { $('simChoices').innerHTML = '<div class="note bad">讀不到表單題目：' + esc(e.message) + '</div>'; });
   }
@@ -1293,7 +1449,7 @@
   function renderOsForms() {
     $('osForms').innerHTML = S.forms.length ? S.forms.map(function (f) {
       var st = statusOf(f);
-      var bits = [f.maxResponses ? '名額 ' + (f.count == null ? '–' : f.count) + '/' + f.maxResponses : '不限名額'];
+      var bits = [f.maxResponses ? '名額 ' + (f.count == null ? '–' : f.count) + '（max:' + f.maxResponses + '）' : '不限名額'];
       if (f.optionQuotas && f.optionQuotas.length) bits.push('選項名額 ' + f.optionQuotas.length + ' 題');
       if (f.closeAt) bits.push(fmt(f.closeAt) + ' 截止');
       if (f.notify.enabled) bits.push('候補通知');
@@ -1304,7 +1460,7 @@
   $('osForms').addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var id = Number(b.closest('.ff').dataset.id);
-    orgPage(b.dataset.act === 'sim' ? 'test' : 'form', id);
+    orgPage(b.dataset.act === 'sim' ? 'test' : 'forms', id);
   });
 
   /* ---------- 全組織：所有組織 ---------- */
