@@ -86,6 +86,17 @@ function createFakeGoogle({ email } = {}) {
       it.questionItem.question.choiceQuestion = { type, options: JSON.parse(JSON.stringify(options)) };
       return {};
     },
+    async updateChoiceQuestion(id, { itemId, questionId, type, title, options }) {
+      guard(); calls.push(['updateChoiceQuestion', id, questionId, title, options.map(o => o.value)]);
+      const f = need(id);
+      if (!canEdit(f)) throw httpError(403, 'The caller does not have permission');
+      const it = f.items.find(i => i.itemId === itemId);
+      if (!it || it.questionItem.question.questionId !== questionId) throw httpError(400, 'item mismatch');
+      if (!options.length) throw httpError(400, 'choice question needs at least one option');
+      it.title = title;
+      it.questionItem.question.choiceQuestion = { type, options: JSON.parse(JSON.stringify(options)) };
+      return {};
+    },
     async formQuestions(id) { const f = need(id); return { collectsEmail: f.collectsEmail, questions: f.questions }; },
     async countResponses(id) { guard(); calls.push(['countResponses', id]); return need(id).responses.length; },
     async listResponses(id, withAnswers) {

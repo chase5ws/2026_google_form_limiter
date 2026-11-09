@@ -163,3 +163,76 @@ test('選項名額完整流程：讀表單結構、設定、額滿移除、候�
   assert.match(logs, /加回選項：上午場/);
   assert.match(logs, /測試「十二月研習」/);
 });
+
+test('修改選項：題目改名、選項改名（舊回覆照算）、新增、刪除、名額一起存；跳段設定保留', async (t) => {
+  const db = open(':memory:');
+  const settings = createSettings({ db, cipher: cipher('k') });
+  const google = createFakeGoogle(); google._connect();
+  const limiter = createLimiter({ db, google, mailerFor: () => null, log: { error() {} } });
+  const server = http.createServer(createApp({ db, google, limiter, settings, config: { appUrl: 'http://x', adminPassword: 'Owner2026x' } }));
+  await new Promise(r => server.listen(0, r));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie = '';
+  const call = async (method, p, body) => {
+    const res = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'limiter', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
+    const sc = res.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    return { status: res.status, data: await res.json() };
+  };
+  await call('POST', '/api/login', { username: 'chase5ws', password: 'Owner2026x' });
+  const orgId = (await call('POST', '/api/orgs', { name: '社大', admin: { username: 'hcadmin', password: 'Bamboo2026x' } })).data[0].id;
+  google._folder('F', 'x');
+  const FORM = 'FORM_EDIT_xxxxxxxxxxxxxxxxx';
+  google._form(FORM, '研習', 'F', { items: [
+    choice('slot', '場次', [], { options: [opt('A 場'), Object.assign(opt('B 場'), { goToSectionId: 'sec2' }), opt('C 場'), { isOther: true }] })
+  ] });
+  db.run('UPDATE orgs SET shared_folder_id = ? WHERE id = ?', 'F', orgId);
+  const form = (await call('POST', '/api/forms', { org: orgId, formId: FORM })).data.form;
+
+  // A 場名額 1，已有 1 人 → 被移除
+  google._submit(FORM, 1, null, () => ({ slot: 'A 場' }));
+  let r = await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: '場次', options: [{ value: 'A 場', from: 'A 場', limit: 1 }, { value: 'B 場', from: 'B 場' }, { value: 'C 場', from: 'C 場' }] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.deepStrictEqual(google._options(FORM, 'slot'), ['B 場', 'C 場', '(其他)']);
+
+  // 一次改：題目改名、A 場（已額滿被移除）改名、B 場改名並設名額、刪掉 C 場、新增 D 場
+  r = await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: '想參加的場次', options: [
+    { value: '上午 A 場', from: 'A 場', limit: 1 }, { value: '下午 B 場', from: 'B 場', limit: 3 }, { value: 'D 場', limit: '' }
+  ] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.deepStrictEqual(google._options(FORM, 'slot'), ['下午 B 場', 'D 場', '(其他)'], '改名後的 A 場仍然額滿、不放回；C 場刪除；新增 D 場；「其他」保留');
+  const item = google.files.get(FORM).items.find(i => i.itemId === 'item-slot');
+  assert.strictEqual(item.title, '想參加的場次');
+  assert.strictEqual(item.questionItem.question.choiceQuestion.options[0].goToSectionId, 'sec2', '跳到某段落的設定保留');
+  assert.deepStrictEqual(r.data.form.optionQuotas[0].options.map(o => [o.value, o.limit, o.count, o.hidden]), [['上午 A 場', 1, 1, true], ['下午 B 場', 3, 0, false]], '舊回覆算在新名稱上');
+
+  // 舊名稱「B 場」的回覆也算在「下午 B 場」：名額 3，再來 3 人（舊名稱 1 + 新名稱 2）→ 額滿
+  google._submit(FORM, 1, null, () => ({ slot: 'B 場' }));
+  google._submit(FORM, 2, null, () => ({ slot: '下午 B 場' }));
+  await limiter.checkAll();
+  assert.deepStrictEqual(google._options(FORM, 'slot'), ['D 場', '(其他)']);
+  const st = (await call('GET', `/api/forms/${form.id}/structure`)).data;
+  const counts = Object.fromEntries(st.sections[0].questions[0].options.map(o => [o.value, o.count]));
+  assert.deepStrictEqual(counts, { 'D 場': 0, '上午 A 場': 1, '下午 B 場': 3 });
+
+  // 拿掉所有名額 → 全部放回表單
+  r = await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: '想參加的場次', options: [
+    { value: '上午 A 場', from: '上午 A 場' }, { value: '下午 B 場', from: '下午 B 場' }, { value: 'D 場', from: 'D 場' }
+  ] });
+  assert.deepStrictEqual(google._options(FORM, 'slot'), ['上午 A 場', '下午 B 場', 'D 場', '(其他)']);
+
+  // 檢查
+  assert.match((await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: 'x', options: [{ value: 'a' }, { value: 'a' }] })).data.error, /重複/);
+  assert.match((await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: 'x', options: [] })).data.error, /至少要有一個選項/);
+  assert.match((await call('PUT', `/api/forms/${form.id}/questions/slot`, { title: '', options: [{ value: 'a' }] })).data.error, /題目名稱/);
+  const logs = (await call('GET', '/api/logs?org=' + orgId)).data.map(l => l.what).join('\n');
+  assert.match(logs, /選項改名：A 場 → 上午 A 場、B 場 → 下午 B 場/);
+  assert.match(logs, /刪除選項：C 場/);
+});
+
+test('信件內容可以用中文欄位名稱', () => {
+  const { fill, DEFAULT_TEMPLATES } = require('../../lib/limiter');
+  const vars = { title: '研習', org: '社大', rank: 5, limit: 4, waitlist: 1, option: '場次：A', full: '「場次：A」的名額 4 位' };
+  assert.strictEqual(fill('{表單名稱}｜{組織}｜{順位}｜{名額}｜{候補第幾位}｜{額滿的選項}｜{額滿說明}｜{title}｜{不存在}', vars), '研習｜社大｜5｜4｜1｜場次：A｜「場次：A」的名額 4 位｜研習｜{不存在}');
+  assert.ok(!/\{[a-z]+\}/.test(Object.values(DEFAULT_TEMPLATES).join('')), '預設內容只用中文欄位');
+});
