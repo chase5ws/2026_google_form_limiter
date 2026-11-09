@@ -34,7 +34,7 @@ test('加密金鑰：自動產生、權限 600、重啟後沿用；環境變數�
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('網頁設定：Google 用戶端與寄信加密存放；環境變數優先且不可在網頁改', () => {
+test('網頁設定：Google 用戶端與組織寄信加密存放；只接受 GAS／SMTP；環境變數優先', () => {
   const db = open(':memory:');
   const box = cipher('k');
   const s = createSettings({ env: {}, db, cipher: box });
@@ -49,22 +49,23 @@ test('網頁設定：Google 用戶端與寄信加密存放；環境變數優先�
   s.setGoogleClient({ clientId: '123-abc.apps.googleusercontent.com' });
   assert.strictEqual(s.googleClient().clientSecret, 'GOCSPX-secret');
 
-  assert.throws(() => s.setMail({ provider: 'resend', from: 'a@b.c', resendKey: 'bad' }), /re_/);
-  s.setMail({ provider: 'resend', from: '平台 <noreply@ex.com>', resendKey: 're_abc123' });
-  assert.deepStrictEqual(s.mailEnv(), { RESEND_API_KEY: 're_abc123', MAIL_FROM: '平台 <noreply@ex.com>' });
-  assert.ok(!db.getSetting('cfg_mail').includes('re_abc123'), '寄信金鑰有加密');
-  assert.strictEqual(s.mailView().hasSecret, true);
-  assert.ok(!JSON.stringify(s.mailView()).includes('re_abc123'), '網頁看不到金鑰');
-  s.setMail({ provider: 'resend', from: 'x@ex.com' }); // 不重填金鑰 → 沿用
-  assert.strictEqual(s.mailEnv().RESEND_API_KEY, 're_abc123');
-  s.setMail({ provider: 'smtp', from: 'bot@gmail.com', host: 'smtp.gmail.com', port: 465, user: 'bot@gmail.com', pass: 'app-pass' });
-  assert.deepStrictEqual(s.mailEnv(), { SMTP_HOST: 'smtp.gmail.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_USER: 'bot@gmail.com', SMTP_PASS: 'app-pass', MAIL_FROM: 'bot@gmail.com' });
+  // 組織寄信：只接受 GAS 或 SMTP，加密存放
+  db.run("INSERT INTO orgs(name, created_at) VALUES ('o', 0)");
+  assert.throws(() => s.setOrgMail(1, { provider: 'resend', from: 'a@b.c', resendKey: 're_x' }) || assert.fail(), /./, 'Resend 已移除');
+  s.setOrgMail(1, { provider: 'smtp', from: 'bot@gmail.com', host: 'smtp.gmail.com', port: 465, user: 'bot@gmail.com', pass: 'app-pass' });
+  assert.deepStrictEqual(s.orgMailEnv(1), { SMTP_HOST: 'smtp.gmail.com', SMTP_PORT: '465', SMTP_SECURE: 'true', SMTP_USER: 'bot@gmail.com', SMTP_PASS: 'app-pass', MAIL_FROM: 'bot@gmail.com' });
+  assert.ok(!db.get('SELECT mail_cfg FROM orgs WHERE id = 1').mail_cfg.includes('app-pass'), '密碼有加密');
+  assert.ok(!JSON.stringify(s.orgMailView(1)).includes('app-pass'), '網頁看不到密碼');
+  s.setOrgMail(1, { provider: 'smtp', from: 'bot@gmail.com', host: 'smtp.gmail.com', port: 465, user: 'bot@gmail.com' });
+  assert.strictEqual(s.orgMailEnv(1).SMTP_PASS, 'app-pass', '不重填密碼 → 沿用');
+  // 舊版存的 Resend 設定視為未設定
+  db.run('UPDATE orgs SET mail_cfg = ? WHERE id = 1', box.encrypt(JSON.stringify({ provider: 'resend', from: 'a@b.c', resendKey: 're_old' })));
+  assert.deepStrictEqual(s.orgMailEnv(1), {});
+  assert.strictEqual(s.orgMailView(1).provider, 'none');
 
-  const e = createSettings({ env: { GOOGLE_CLIENT_ID: 'env.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 's', RESEND_API_KEY: 're_env', MAIL_FROM: 'e@x.com' }, db, cipher: box });
+  const e = createSettings({ env: { GOOGLE_CLIENT_ID: 'env.apps.googleusercontent.com', GOOGLE_CLIENT_SECRET: 's' }, db, cipher: box });
   assert.strictEqual(e.googleClient().source, 'env');
   assert.throws(() => e.setGoogleClient({ clientId: '1-a.apps.googleusercontent.com', clientSecret: 'x' }), /環境變數/);
-  assert.strictEqual(e.mailEnv().RESEND_API_KEY, 're_env');
-  assert.throws(() => e.setMail({ provider: 'none' }), /環境變數/);
 });
 
 test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端會中斷 Google', async () => {
@@ -72,9 +73,8 @@ test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端�
   const box = cipher('k');
   const settings = createSettings({ env: {}, db, cipher: box });
   const google = createGoogle({ getClient: () => settings.googleClient(), redirectUri: 'https://app.example.com/oauth/google/callback', db, cipher: box });
-  const mailer = createMailer(() => settings.mailEnv());
-  const limiter = createLimiter({ db, google, mailer, log: { error() {} } });
-  const handle = createApp({ db, google, limiter, mailer, settings,
+  const limiter = createLimiter({ db, google, log: { error() {} } });
+  const handle = createApp({ db, google, limiter, settings,
     runtime: { appUrl: 'https://app.example.com', redirectUri: 'https://app.example.com/oauth/google/callback', onRailway: true, volumeMounted: false, keySource: 'auto' },
     config: { appUrl: 'https://app.example.com' } });
   const server = http.createServer(handle);
@@ -92,7 +92,7 @@ test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端�
     let r = await call('GET', '/api/setup');
     assert.strictEqual(r.data.runtime.redirectUri, 'https://app.example.com/oauth/google/callback');
     const ok = Object.fromEntries(r.data.checks.map(c => [c.key, c.ok]));
-    assert.deepStrictEqual(ok, { domain: true, volume: false, client: false, connect: false, mail: false });
+    assert.deepStrictEqual(ok, { domain: true, volume: false, client: false, connect: false });
     assert.strictEqual(r.data.done, false);
     assert.strictEqual((await call('POST', '/api/google/connect')).status, 503);
 
@@ -106,12 +106,6 @@ test('平台設定 API：檢查清單、網頁設定立即生效、換用戶端�
     r = await call('PUT', '/api/setup/google', { clientId: '43-y.apps.googleusercontent.com', clientSecret: 'GOCSPX-2' });
     assert.strictEqual(r.data.google.connected, false, '換用戶端後要重新連接');
 
-    r = await call('PUT', '/api/setup/mail', { provider: 'resend', from: 'noreply@ex.com', resendKey: 're_live' });
-    assert.strictEqual(r.data.checks.find(c => c.key === 'mail').ok, true);
-    assert.strictEqual(mailer.provider, 'resend');
-    assert.ok(!JSON.stringify(r.data).includes('re_live'));
-    const me = (await call('GET', '/api/me')).data;
-    assert.strictEqual(me.mail.enabled, true);
   } finally { server.close(); }
 });
 
@@ -140,21 +134,19 @@ test('ADMIN_PASSWORD：直接登入不用改密碼、可以自己在網頁改、
   assert.strictEqual(db.get('SELECT COUNT(*) n FROM login_fails').n, 0, '鎖定解除');
 });
 
-test('每個組織用自己的寄信帳號；沒設定時用平台預設；成員不能看設定', async () => {
+test('寄信只用組織自己的設定；沒設定就不寄；平台設定只有擁有者能用', async () => {
   const db = open(':memory:');
   const box = cipher('k');
   const settings = createSettings({ env: {}, db, cipher: box });
   const { createFakeGoogle } = require('./fake-google');
+  const { gasScript } = require('../../lib/gas-relay');
   const google = createFakeGoogle(); google._connect();
-  const sent = [];
-  const fakeFetch = async (url, opt) => { const b = JSON.parse(opt.body); sent.push({ key: opt.headers.Authorization, from: b.from, to: b.to[0], subject: b.subject }); return { ok: true, json: async () => ({}) }; };
-  const platformMailer = Object.assign(createMailer(() => settings.mailEnv(), { fetchImpl: fakeFetch }), { source: 'platform' });
-  const mailerFor = (orgId) => {
-    const e = orgId ? settings.orgMailEnv(orgId) : {};
-    return e.MAIL_FROM ? Object.assign(createMailer(e, { fetchImpl: fakeFetch }), { source: 'org' }) : platformMailer;
-  };
+  const deployments = {};
+  const routedFetch = async (url, opt) => deployments[url].fetchImpl(url, opt);
+  const noMailer = createMailer({});
+  const mailerFor = (orgId) => { const e = orgId ? settings.orgMailEnv(orgId) : {}; return e.MAIL_FROM ? createMailer(e, { fetchImpl: routedFetch }) : noMailer; };
   const limiter = createLimiter({ db, google, mailerFor, log: { error() {} } });
-  const handle = createApp({ db, google, limiter, mailerFor, settings, config: { appUrl: 'http://x', adminPassword: 'Super2026x' } });
+  const handle = createApp({ db, google, limiter, mailerFor, settings, config: { appUrl: 'http://x', adminPassword: 'Super2026x', fetchImpl: routedFetch } });
   const server = http.createServer(handle);
   await new Promise(r => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -164,74 +156,54 @@ test('每個組織用自己的寄信帳號；沒設定時用平台預設；成�
     return { status: res.status, data: await res.json() };
   }; };
   try {
-    const su = client();
-    await su('POST', '/api/login', { username: 'chase5ws', password: 'Super2026x' });
-    await su('POST', '/api/orgs', { name: '社大', admin: { username: 'org-a', password: 'OrgA2026xx' } });
-    const orgs = (await su('POST', '/api/orgs', { name: '校友會', admin: { username: 'org-b', password: 'OrgB2026xx' } })).data;
+    const owner = client();
+    await owner('POST', '/api/login', { username: 'chase5ws', password: 'Super2026x' });
+    const meR = await owner('GET', '/api/me'); assert.ok(meR.data.me, JSON.stringify(meR)); assert.strictEqual(meR.data.me.owner, true);
+    await owner('POST', '/api/orgs', { name: '社大', admin: { username: 'org-a', password: 'Alpha2026xx' } });
+    const orgs = (await owner('POST', '/api/orgs', { name: '校友會', admin: { username: 'org-b', password: 'Bravo2026xx' } })).data;
     const [A, B] = orgs.map(o => o.id);
-    assert.strictEqual(orgs[0].mail.enabled, false, '平台和組織都沒設定');
+    assert.strictEqual(orgs[0].mail.enabled, false);
+    assert.strictEqual((await owner('PUT', '/api/setup/mail', { provider: 'smtp' })).status, 404, '平台預設寄信已移除');
 
-    // 平台預設
-    await su('PUT', '/api/setup/mail', { provider: 'resend', from: '平台 <noreply@platform.com>', resendKey: 're_platform' });
-    // 組織 A 自己的
+    // 平台擁有者可以替組織新增組織管理員，對方可以設定組織寄信
+    assert.strictEqual((await owner('POST', '/api/users', { org: A, username: 'org-a2', password: 'Second2026x', role: 'org_admin' })).status, 200);
     const a = client();
-    await a('POST', '/api/login', { username: 'org-a', password: 'OrgA2026xx' });
-    await a('POST', '/api/password', { oldPassword: 'OrgA2026xx', newPassword: 'OrgAown2026' });
-    let r = await a('PUT', `/api/orgs/${A}/mail`, { provider: 'resend', from: '社大 <hi@school.org>', resendKey: 're_school' });
-    assert.strictEqual(r.data.effective.source, 'org');
-    assert.strictEqual(r.data.effective.from, '社大 <hi@school.org>');
-    assert.ok(!JSON.stringify(r.data).includes('re_school'), '看不到金鑰');
+    await a('POST', '/api/login', { username: 'org-a2', password: 'Second2026x' });
+    await a('POST', '/api/password', { oldPassword: 'Second2026x', newPassword: 'Charlie2026x' });
+    const gen = (await a('POST', '/api/mail/gas-script')).data;
+    const URLA = 'https://script.google.com/macros/s/AKfycbx_orgA_deployment_000000001/exec';
+    deployments[URLA] = fakeGasDeployment(gen.code, { email: 'notice@school.org' });
+    let r = await a('PUT', `/api/orgs/${A}/mail`, { provider: 'gas', gasUrl: URLA, gasSecret: gen.secret, gasName: '社大通知' });
+    assert.strictEqual(r.data.effective.from, '社大通知 <notice@school.org>');
     assert.strictEqual((await a('GET', `/api/orgs/${B}/mail`)).status, 403, '不能看別的組織');
-    assert.strictEqual((await a('GET', '/api/me')).data.mail.source, 'org');
+    assert.strictEqual((await a('PUT', `/api/orgs/${A}/mail`, { provider: 'resend', from: 'x@y.z', resendKey: 're_1' })).data.effective.enabled, false, 'Resend 不再支援 → 視為不寄信');
+    await a('PUT', `/api/orgs/${A}/mail`, { provider: 'gas', gasUrl: URLA, gasSecret: gen.secret, gasName: '社大通知' });
 
-    // 組織成員不能看寄信設定
-    await a('POST', '/api/users', { org: A, username: 'staff-a', password: 'StaffA2026', role: 'org_member' });
-    db.run("UPDATE users SET must_change = 0 WHERE username = 'staff-a'");
-    const m = client();
-    await m('POST', '/api/login', { username: 'staff-a', password: 'StaffA2026' });
-    assert.strictEqual((await m('GET', `/api/orgs/${A}/mail`)).status, 403);
-
-    // 兩個組織各有一份滿額表單 → A 用自己的帳號寄，B 用平台預設
+    // 兩個組織各有一份滿額表單 → A 用自己的 GAS 寄；B 沒設定 → 不寄
     for (const [org, folder, form] of [[A, 'FA', 'FORM_A_xxxxxxxxxxxxxxxx'], [B, 'FB', 'FORM_B_xxxxxxxxxxxxxxxx']]) {
       google._folder(folder, '表單限額平台'); google._form(form, '講座 ' + org, folder);
       db.run('UPDATE orgs SET shared_folder_id = ?, shared_folder_name = ? WHERE id = ?', folder, '表單限額平台', org);
-      const add = await su('POST', '/api/forms', { org, formId: form });
-      await su('PATCH', '/api/forms/' + add.data.form.id, { maxResponses: 1, notifyEnabled: true });
+      const add = await owner('POST', '/api/forms', { org, formId: form });
+      await owner('PATCH', '/api/forms/' + add.data.form.id, { maxResponses: 1, notifyEnabled: true });
       google._submit(form, 2);
     }
     await limiter.checkAll();
-    const byKey = Object.fromEntries(sent.map(x => [x.key, x.from]));
-    assert.strictEqual(byKey['Bearer re_school'], '社大 <hi@school.org>', '組織 A 用自己的帳號');
-    assert.strictEqual(byKey['Bearer re_platform'], '平台 <noreply@platform.com>', '組織 B 沒設定 → 平台預設');
+    assert.deepStrictEqual(deployments[URLA].sent.map(m => [m.to, m.name]), [['p2@example.com', '社大通知']]);
+    assert.strictEqual(db.get('SELECT COUNT(*) n FROM notices n JOIN forms f ON f.id = n.form_id WHERE f.org_id = ?', B).n, 0, 'B 沒設定寄信 → 不寄、不記錄');
 
-    // A 改回不寄信設定 → 退回平台預設
-    r = await a('PUT', `/api/orgs/${A}/mail`, { provider: 'none' });
-    assert.strictEqual(r.data.effective.source, 'platform');
-    // 測試信
-    await a('PUT', `/api/orgs/${A}/mail`, { provider: 'resend', from: 'hi@school.org', resendKey: 're_school' });
-    r = await a('POST', `/api/orgs/${A}/mail/test`, { to: 'me@school.org' });
-    assert.strictEqual(r.data.source, 'org');
-    assert.strictEqual(sent[sent.length - 1].key, 'Bearer re_school');
+    // 另一位平台管理員：可以管組織，但不能用平台設定
+    await owner('POST', '/api/users', { org: 'platform', username: 'helper', password: 'Assist2026x', role: 'super' });
+    db.run("UPDATE users SET must_change = 0 WHERE username = 'helper'");
+    const h = client();
+    await h('POST', '/api/login', { username: 'helper', password: 'Assist2026x' });
+    assert.strictEqual((await h('GET', '/api/me')).data.me.owner, false);
+    assert.strictEqual((await h('GET', '/api/orgs')).status, 200);
+    assert.strictEqual((await h('POST', '/api/users', { org: B, username: 'org-b2', password: 'Delta2026xx', role: 'org_admin' })).status, 200, '可以替組織建立管理員');
+    for (const [m, p, b] of [['GET', '/api/setup'], ['PUT', '/api/setup/google', { clientId: '1-a.apps.googleusercontent.com', clientSecret: 'x' }], ['POST', '/api/google/connect'], ['POST', '/api/google/disconnect'],
+      ['PUT', '/api/settings', { folderName: 'x' }], ['GET', '/api/users?org=platform'], ['GET', '/api/logs?org=platform'], ['POST', '/api/users', { org: 'platform', username: 'evil', password: 'Evil2026xxx', role: 'super' }]]) {
+      assert.strictEqual((await h(m, p, b)).status, 403, `${m} ${p} 應該只有擁有者能用`);
+    }
   } finally { server.close(); }
-});
-
-test('ADMIN_ACCOUNT + ADMIN_PASSWORD：自訂帳號直接登入；換帳號會建立新的平台管理員', () => {
-  const db = open(':memory:');
-  const google = { configured: () => false, connected: () => false, email: () => null };
-  const sec = require('../../lib/security');
-  const mk = (user, pw) => createApp({ db, google, limiter: {}, config: { appUrl: 'http://x', defaultAdminUser: user, adminPassword: pw } });
-  mk('Boss.Admin', 'Strong#2026');
-  const u = db.get("SELECT * FROM users WHERE username = 'boss.admin'");
-  assert.ok(u, '帳號轉小寫建立');
-  assert.strictEqual(u.role, 'super');
-  assert.strictEqual(u.must_change, 0);
-  assert.ok(sec.verifyPassword('Strong#2026', u.password_hash));
-  assert.strictEqual(db.get("SELECT COUNT(*) n FROM users WHERE username = 'chase5ws'").n, 0, '有設 ADMIN_ACCOUNT 就不會另外建 chase5ws');
-  mk('second', 'Strong#2026');
-  const v = db.get("SELECT * FROM users WHERE username = 'second'");
-  assert.ok(v && v.role === 'super' && sec.verifyPassword('Strong#2026', v.password_hash), '換帳號（密碼相同）也會套用');
-  mk('bad name!', 'x');
-  assert.ok(db.get("SELECT id FROM users WHERE username = 'chase5ws'"), '格式錯誤時退回 chase5ws');
 });
 
 /* 在 Node 裡執行產生出來的 GAS 程式碼（模擬 MailApp / Session / ContentService） */

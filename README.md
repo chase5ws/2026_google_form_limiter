@@ -14,7 +14,7 @@ server.js            進入點
 lib/app.js           API 與權限
 lib/google.js        Google OAuth、Drive、Forms API
 lib/limiter.js       規則判斷、排位、寄通知、每分鐘排程
-lib/mailer.js        寄信（GAS、Resend 或 SMTP）
+lib/mailer.js        寄信（GAS 或 SMTP）
 lib/gas-relay.js     組織 GAS 寄信中繼站的程式碼範本
 lib/db.js            SQLite 資料表
 lib/security.js      密碼雜湊、加密
@@ -40,7 +40,6 @@ test/platform/       平台測試（模擬 Google API）
 | `ENCRYPTION_KEY` | 第一次啟動自動產生，存在 Volume 裡的 `.encryption-key` |
 | `APP_URL` | 自動讀取 Railway 網域 |
 | Google 用戶端 ID／密鑰 | 在網頁「平台設定」填，加密存放、不用重新部署 |
-| 寄信（Resend／SMTP） | 在網頁「平台設定」填，加密存放、不用重新部署 |
 
 > 想用指令完成第 2、3 步也可以（要先 `npx @railway/cli login` 並在 repo 資料夾執行 `npx @railway/cli link`）：
 > ```bash
@@ -51,13 +50,12 @@ test/platform/       平台測試（模擬 Google API）
 ## 二、打開網站，照「平台設定」的清單做
 
 1. 打開網域登入：有設 `ADMIN_ACCOUNT`／`ADMIN_PASSWORD` 就用那組帳密直接登入；沒設的話用 **`chase5ws` / `chase5ws`**，第一次會要求改密碼。
-2. 登入後會直接進到 **平台設定**，最上面的「設定進度」會列出還沒完成的項目，並偵測網域和 Volume 有沒有設定好。
+2. 登入後會直接進到 **平台設定**（之後在畫面最上方「管理組織」右邊的「⚙️ 平台設定」）。最上面的「設定進度」會列出還沒完成的項目，並偵測網域和 Volume 有沒有設定好。**平台設定只有 `ADMIN_ACCOUNT` 這個帳號（平台擁有者）看得到**，其他平台管理員只能管理組織。
 3. **Google OAuth 用戶端**：照頁面上的 3 個連結到 Google Cloud 操作（用平台的 Google 帳號，例如 chase5ws@gmail.com）：
    1. 建立專案，啟用 Forms API 和 Drive API。
    2. OAuth 同意畫面：目標對象選「外部」，**按「發布應用程式」**。停在「測試中」的話，授權每 7 天就會失效。不用送審。
    3. 建立用戶端，類型選「網頁應用程式」。「已授權的重新導向 URI」按頁面上的「複製」貼上，然後把用戶端 ID 和密鑰貼回平台，儲存。
 4. **連接 Google**：按「連接 Google」→ 看到未驗證的警告，點「進階 → 前往」→「允許」。
-5. **平台預設寄信**（選填）：每個組織會在自己的「組織設定」填寄信帳號。這裡只是組織沒設定時的備用，**留空就只用組織自己的**。
 
 ### 進階：用環境變數覆蓋（選填）
 有設定的話會優先使用，網頁上就不能改。
@@ -65,7 +63,6 @@ test/platform/       平台測試（模擬 Google API）
 | 變數 | 用途 |
 |---|---|
 | `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | Google 用戶端 |
-| `RESEND_API_KEY` `MAIL_FROM` 或 `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `MAIL_FROM` | 平台預設寄信（組織沒設定自己的寄信帳號時才用） |
 | `ENCRYPTION_KEY` | 自訂加密金鑰（設定後不要改，改了要重新連接 Google、重填寄信設定） |
 | `DATA_DIR` | 自訂資料位置 |
 | `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
@@ -93,7 +90,7 @@ test/platform/       平台測試（模擬 Google API）
 | `ADMIN_PASSWORD` | 你的密碼 |
 
 - 直接用這組帳密登入，**第一次不用改密碼**。
-- 之後改 `ADMIN_ACCOUNT` 會**另外建立**一個新的平台管理員，舊帳號不會被刪除，可以在「平台設定 → 平台管理員」停用或刪除。
+- 之後改 `ADMIN_ACCOUNT` 會**另外建立**一個新的平台管理員，舊帳號不會被刪除，可以在「平台設定 → 平台管理員」停用或刪除。新的帳號會成為平台擁有者，只有它能使用平台設定。
 - 之後一樣可以在網頁右上角「改密碼」自己改。重啟或重新部署**不會**把它改回去，因為同一個值只會套用一次。
 - **忘記密碼時**：把 `ADMIN_PASSWORD` 改成另一個值，重新部署後就能用新的值登入。所有裝置會被登出，登入鎖定也會解除。
 - 密碼只存在 Railway，**不要寫進程式碼**，因為這個 repo 是公開的。
@@ -108,6 +105,7 @@ test/platform/       平台測試（模擬 Google API）
 1. 完成上面「平台設定」的清單。在同一頁確認「組織共用資料夾名稱」，預設是「表單限額平台」，可以改成你要的名稱。
 2. **所有組織 → 建立組織**：填組織名稱和第一位組織管理員。帳密會自動複製到剪貼簿，私訊給對方。
 3. 上方「管理組織」下拉選單可以切換到任一組織，替他們處理表單或帳號。
+4. **替組織新增管理員**：「所有組織」→ 該組織的「新增管理員」，預設權限就是組織管理員，對方登入後可以設定共用資料夾、寄信帳號和同事帳號。
 
 ### 組織管理員
 1. 用你給的帳密登入，改成自己的密碼。
@@ -124,7 +122,6 @@ test/platform/       平台測試（模擬 Google API）
      4. 把「網頁應用程式網址」貼回平台，儲存。平台會自動測試連線，並抓出寄件帳號。
      - 額度：Google Workspace 帳號每天約 1,500 封，一般 Gmail 約 100 封。
      - 程式碼裡有平台產生的專屬密鑰，沒有密鑰的人沒辦法透過這個網址寄信。
-   - **Resend**：要能在你們網域的 DNS 加驗證紀錄，學校網域通常要請資訊組協助。
    - **SMTP**：例如 `smtp.gmail.com`、`465`、帳號加[應用程式密碼](https://myaccount.google.com/apppasswords)。**只有平台的 Railway 是 Pro 方案才能用**。
    - 儲存後寄一封測試信確認。
 8. 填寫連結**不變**，照常發給大家就好。
@@ -146,7 +143,7 @@ test/platform/       平台測試（模擬 Google API）
 |---|---|
 | 登入平台、開關表單、讀回覆數 | **平台**的 Google 帳號（你的 Gmail），只需要連接一次 |
 | 共用資料夾、表單、回覆、上傳的檔案 | **組織**自己的 Google 帳號，容量也算組織的 |
-| 寄候補／遞補通知 | **組織**自己的寄信帳號（組織設定 → 寄信帳號）；沒設定時才用平台預設 |
+| 寄候補／遞補通知 | **組織**自己的寄信帳號（組織設定 → 寄信帳號，GAS 或 SMTP）；沒設定就不寄 |
 
 ## 雲端硬碟與容量
 
@@ -172,7 +169,7 @@ test/platform/       平台測試（模擬 Google API）
 - 每次檢查最多寄 30 封信，其餘的下一分鐘繼續寄。
 - Forms API 不能改「表單已關閉」時的提示文字，會顯示 Google 預設的訊息。
 - 2025 年以前建立的**舊版表單**不能用 API 開關。請在 Google 表單按「⋮ → 建立副本」，副本是新版格式。
-- Railway Free、Trial、Hobby 方案**封鎖 SMTP**，請改用 Google Apps Script 或 Resend。
+- Railway Free、Trial、Hobby 方案**封鎖 SMTP**，請改用 Google Apps Script。
 - SQLite 只能跑 1 個實例。`railway.json` 已經設好 `numReplicas: 1`。
 
 ## 本機開發與測試

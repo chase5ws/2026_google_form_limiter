@@ -83,7 +83,7 @@ test('完整流程', async (t) => {
     const me = (await su.get('/api/me')).data;
     assert.strictEqual(me.google.email, 'chase5ws@gmail.com');
     assert.strictEqual(me.google.folderName, '表單限額平台');
-    assert.strictEqual(me.mail.enabled, true);
+    assert.strictEqual(me.me.owner, true, 'chase5ws 是平台擁有者');
   });
 
   await t.test('平台管理員可以改共用資料夾名稱', async () => {
@@ -264,12 +264,6 @@ test('完整流程', async (t) => {
   await t.test('暴力破解鎖定', async () => {
     for (let i = 0; i < 5; i++) await login(base, 'yuntech', 'bad' + i);
     assert.strictEqual((await login(base, 'yuntech', 'YunOwn2026')).r.status, 429);
-  });
-
-  await t.test('平台管理員寄測試信', async () => {
-    const r = await su.post('/api/mail/test', { to: 'me@example.com' });
-    assert.strictEqual(r.status, 200);
-    assert.strictEqual(mailer.sent[mailer.sent.length - 1].to, 'me@example.com');
   });
 
   await t.test('紀錄：組織只看得到自己的', async () => {

@@ -30,12 +30,11 @@ const google = createGoogle({
   db,
   cipher: box
 });
-// 寄信：每個組織用自己的設定；沒設定時退回平台預設（可留空，只用組織的）
-const platformMailer = Object.assign(createMailer(() => settings.mailEnv()), { source: 'platform' });
+// 寄信：每個組織用自己設定的 GAS 或 SMTP；沒設定就不寄
+const noMailer = createMailer({});
 function mailerFor(orgId) {
   const orgEnv = orgId ? settings.orgMailEnv(orgId) : {};
-  if (orgEnv.MAIL_FROM) return Object.assign(createMailer(orgEnv), { source: 'org' });
-  return platformMailer;
+  return orgEnv.MAIL_FROM ? createMailer(orgEnv) : noMailer;
 }
 const limiter = createLimiter({ db, google, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
 const handle = createApp({
@@ -70,7 +69,7 @@ const server = http.createServer((req, res) => {
   handle(req, res);
 });
 server.listen(Number(env.PORT || 3000), () => {
-  console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}，平台預設寄信：${platformMailer.provider || '未設定'}）`);
+  console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}）`);
   limiter.start();
 });
 

@@ -68,17 +68,6 @@ test('SMTP 連不上時，錯誤訊息會說明是 Railway 封鎖或主機打錯
   await assert.rejects(m2.send({ to: 'x@y.z', subject: 's', text: 't' }), /找不到主機|Railway/);
 });
 
-test('Resend：用 HTTPS API 寄信', async () => {
-  const calls = [];
-  const mailer = createMailer({ RESEND_API_KEY: 're_test', MAIL_FROM: 'noreply@example.com' }, {
-    fetchImpl: async (url, opt) => { calls.push({ url, opt }); return { ok: true, json: async () => ({ id: '1' }) }; }
-  });
-  assert.strictEqual(mailer.provider, 'resend');
-  await mailer.send({ to: 'a@example.com', subject: '測試', text: '內容' });
-  assert.strictEqual(calls[0].url, 'https://api.resend.com/emails');
-  assert.deepStrictEqual(JSON.parse(calls[0].opt.body), { from: 'noreply@example.com', to: ['a@example.com'], subject: '測試', text: '內容' });
-});
-
 test('limiter.stop 會等正在進行的檢查做完再回來', async () => {
   const db = open(':memory:');
   const google = createFakeGoogle(); google._connect();
