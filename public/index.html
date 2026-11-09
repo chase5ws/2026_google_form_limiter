@@ -55,9 +55,13 @@
   .orgpick select { width: auto; padding: 5px 8px; max-width: 220px; }
   #btnPlatform.on { border-color: var(--brand); color: var(--brand); background: var(--brand-weak); }
   .me { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-  .tabs { max-width: 1080px; margin: 0 auto; padding: 0 16px; display: flex; gap: 4px; overflow-x: auto; }
-  .tab { border: 0; background: none; padding: 10px 12px; border-bottom: 2px solid transparent; cursor: pointer; color: var(--muted); white-space: nowrap; }
-  .tab.on { color: var(--brand); border-color: var(--brand); font-weight: 600; }
+  /* 頁面連結放在標題列右上角（不另外放一排分頁） */
+  .navlinks { display: flex; gap: 2px; flex-wrap: wrap; }
+  .tab { border: 0; background: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; color: var(--muted); white-space: nowrap; font-size: 13px; }
+  .tab:hover { background: #f1f2f5; color: var(--text); }
+  .tab.on { color: var(--brand); font-weight: 600; }
+  .logo { cursor: pointer; }
+  .me .who { display: none; } /* 帳號資訊改放在「登出」按鈕的提示文字 */
   main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 60px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
   .section-head { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
@@ -151,6 +155,9 @@
     .log { grid-template-columns: 1fr; }
     .log div:nth-child(3n+1), .log div:nth-child(3n+2) { border: 0; padding-bottom: 0; color: var(--muted); font-size: 12px; }
     .me .who { display: none; }
+    .bar { gap: 8px; }
+    .logo span { font-size: 15px; }
+    .me { width: 100%; margin-left: 0; justify-content: space-between; flex-wrap: wrap; }
     .orgpick { order: 3; width: 100%; }
     .orgpick select { flex: 1; max-width: none; }
   }
@@ -190,12 +197,12 @@
       <div class="orgpick hidden" id="orgPick"><span class="small muted">管理組織</span><select id="orgSelect"></select></div>
       <button class="btn sm hidden" id="btnPlatform">⚙️ 平台設定</button>
       <div class="me">
+        <nav class="navlinks" id="tabs"></nav>
         <span class="who small muted" id="meName"></span>
         <button class="btn sm ghost" id="btnChangePw">改密碼</button>
         <button class="btn sm" id="btnLogout">登出</button>
       </div>
     </div>
-    <nav class="tabs" id="tabs"></nav>
   </header>
   <div class="banner hidden" id="setupBanner"><div><span id="setupBannerText"></span><button class="btn sm" id="setupBannerBtn">前往平台設定</button></div></div>
   <main>
@@ -525,6 +532,7 @@
       S.me = r.me; S.google = r.google || {}; S.mail = r.mail || {}; S.templates = r.templates || {};
       if (S.me.mustChange) { show('vChange', true); return; }
       $('meName').textContent = S.me.displayName + '（' + (isSuper() ? (S.me.owner ? '平台擁有者' : '平台管理員') : (S.me.orgName + '・' + ROLE[S.me.role])) + '）';
+      $('btnLogout').title = '目前登入：' + $('meName').textContent;
       document.querySelectorAll('.pemail').forEach(function (el) { el.textContent = S.google.email || '（平台尚未連接 Google）'; });
       document.querySelectorAll('.fname').forEach(function (el) { el.textContent = S.google.folderName; });
       $('noGoogle').classList.toggle('hidden', !!S.google.connected);
@@ -561,7 +569,7 @@
   });
   function tabsFor() {
     var t = [];
-    if (S.orgId) { t.push(['forms', '表單']); if (isSuper() || S.me.role === 'org_admin') { t.push(['users', '帳號']); t.push(['orgsettings', '組織設定']); } t.push(['logs', '紀錄']); }
+    if (S.orgId) { t.push(['forms', '首頁']); if (isSuper() || S.me.role === 'org_admin') { t.push(['users', '帳號']); t.push(['orgsettings', '組織設定']); } t.push(['logs', '紀錄']); }
     if (isSuper()) t.push(['orgs', '所有組織']);
     return t;
   }
@@ -572,6 +580,7 @@
     $('tabs').innerHTML = tabsFor().map(function (t) { return '<button class="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
   }
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) go(b.dataset.tab); });
+  document.querySelector('header .logo').addEventListener('click', function () { if (S.me) go(S.orgId ? 'forms' : (isSuper() ? 'orgs' : 'forms')); });
   function go(tab) {
     S.tab = tab;
     document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
