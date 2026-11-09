@@ -52,7 +52,7 @@ const handle = createApp({
   },
   config: {
     appUrl: APP_URL,
-    defaultAdminUser: env.DEFAULT_ADMIN_USER,
+    defaultAdminUser: env.ADMIN_ACCOUNT || env.ADMIN__ACCOUNT || env.DEFAULT_ADMIN_USER,
     defaultAdminPassword: env.DEFAULT_ADMIN_PASSWORD,
     adminPassword: env.ADMIN_PASSWORD,
     resetAdminPassword: env.RESET_ADMIN_PASSWORD,

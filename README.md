@@ -49,7 +49,7 @@ test/platform/       平台測試（模擬 Google API）
 
 ## 二、打開網站，照「平台設定」的清單做
 
-1. 打開網域登入：有設 `ADMIN_PASSWORD` 就用 `chase5ws` 和那組密碼直接登入；沒設的話用 **`chase5ws` / `chase5ws`**，第一次會要求改密碼。
+1. 打開網域登入：有設 `ADMIN_ACCOUNT`／`ADMIN_PASSWORD` 就用那組帳密直接登入；沒設的話用 **`chase5ws` / `chase5ws`**，第一次會要求改密碼。
 2. 登入後會直接進到 **平台設定**，最上面的「設定進度」會列出還沒完成的項目，並偵測網域和 Volume 有沒有設定好。
 3. **Google OAuth 用戶端**：照頁面上的 3 個連結到 Google Cloud 操作（用平台的 Google 帳號，例如 chase5ws@gmail.com）：
    1. 建立專案，啟用 Forms API 和 Drive API。
@@ -70,7 +70,8 @@ test/platform/       平台測試（模擬 Google API）
 | `APP_URL` | 綁自訂網域時填，例如 `https://forms.example.com` |
 | `CHECK_INTERVAL_SECONDS` | 檢查間隔，預設 `60` |
 | `DRIVE_FOLDER_NAME` | 組織共用資料夾名稱，預設 `表單限額平台`，也可以在網頁改 |
-| `ADMIN_PASSWORD` | 平台管理員 `chase5ws` 的密碼，第一次登入不用改；忘記密碼時換一個值，見下方說明 |
+| `ADMIN_ACCOUNT` | 平台管理員帳號，預設 `chase5ws`（3–32 個英文小寫、數字、. _ -） |
+| `ADMIN_PASSWORD` | 平台管理員密碼，第一次登入不用改；忘記密碼時換一個值，見下方說明 |
 
 **之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改文件不會觸發。資料存在 Volume，不受部署影響。
 
@@ -82,14 +83,21 @@ test/platform/       平台測試（模擬 Google API）
 
 如果 Railway 後台的 Settings → Deploy 有另外設定 Draining Seconds，以後台為準，記得也設成 30。
 
-### 平台管理員密碼（建議設定）
-在 Railway → 服務 → **Variables** 新增 `ADMIN_PASSWORD`，值填你的密碼：
-- `chase5ws` 直接用這組密碼登入，**第一次不用改密碼**。
+### 平台管理員帳密（建議設定）
+在 Railway → 服務 → **Variables** 新增兩個變數：
+
+| 變數 | 值 |
+|---|---|
+| `ADMIN_ACCOUNT` | 你的帳號，例如 `chase5ws`（沒設就是 `chase5ws`） |
+| `ADMIN_PASSWORD` | 你的密碼 |
+
+- 直接用這組帳密登入，**第一次不用改密碼**。
+- 之後改 `ADMIN_ACCOUNT` 會**另外建立**一個新的平台管理員，舊帳號不會被刪除，可以在「平台設定 → 平台管理員」停用或刪除。
 - 之後一樣可以在網頁右上角「改密碼」自己改。重啟或重新部署**不會**把它改回去，因為同一個值只會套用一次。
 - **忘記密碼時**：把 `ADMIN_PASSWORD` 改成另一個值，重新部署後就能用新的值登入。所有裝置會被登出，登入鎖定也會解除。
 - 密碼只存在 Railway，**不要寫進程式碼**，因為這個 repo 是公開的。
 
-沒設 `ADMIN_PASSWORD` 的話，預設帳密是 `chase5ws` / `chase5ws`，第一次登入會要求改密碼。
+沒設 `ADMIN_PASSWORD` 的話，預設帳密是 `ADMIN_ACCOUNT`（或 `chase5ws`）／`chase5ws`，第一次登入會要求改密碼。
 
 組織的帳號忘記密碼：由組織管理員或平台管理員在「帳號」分頁按「重設密碼」。
 

@@ -214,3 +214,22 @@ test('每個組織用自己的寄信帳號；沒設定時用平台預設；成�
     assert.strictEqual(sent[sent.length - 1].key, 'Bearer re_school');
   } finally { server.close(); }
 });
+
+test('ADMIN_ACCOUNT + ADMIN_PASSWORD：自訂帳號直接登入；換帳號會建立新的平台管理員', () => {
+  const db = open(':memory:');
+  const google = { configured: () => false, connected: () => false, email: () => null };
+  const sec = require('../../lib/security');
+  const mk = (user, pw) => createApp({ db, google, limiter: {}, config: { appUrl: 'http://x', defaultAdminUser: user, adminPassword: pw } });
+  mk('Boss.Admin', 'Strong#2026');
+  const u = db.get("SELECT * FROM users WHERE username = 'boss.admin'");
+  assert.ok(u, '帳號轉小寫建立');
+  assert.strictEqual(u.role, 'super');
+  assert.strictEqual(u.must_change, 0);
+  assert.ok(sec.verifyPassword('Strong#2026', u.password_hash));
+  assert.strictEqual(db.get("SELECT COUNT(*) n FROM users WHERE username = 'chase5ws'").n, 0, '有設 ADMIN_ACCOUNT 就不會另外建 chase5ws');
+  mk('second', 'Strong#2026');
+  const v = db.get("SELECT * FROM users WHERE username = 'second'");
+  assert.ok(v && v.role === 'super' && sec.verifyPassword('Strong#2026', v.password_hash), '換帳號（密碼相同）也會套用');
+  mk('bad name!', 'x');
+  assert.ok(db.get("SELECT id FROM users WHERE username = 'chase5ws'"), '格式錯誤時退回 chase5ws');
+});
