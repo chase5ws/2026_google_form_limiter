@@ -1,7 +1,5 @@
 # 表單限額管理平台
 
-> 這個 repo 也保留了早期的 **Google Apps Script 單一團隊版**（`src/`），說明在 [`docs/gas.md`](docs/gas.md)。
-
 多組織版本：你是**平台管理員**，替每個組織開帳號。組織把一個**指定名稱的資料夾**共用給你，把表單放進去，平台就會直接控管裡面的表單。
 
 - **不佔你的雲端硬碟**：平台不複製、不建立任何檔案。表單、回覆、上傳的檔案都留在組織自己的帳號
@@ -23,7 +21,6 @@ lib/runtime.js       自動偵測 Volume、產生金鑰、網頁上的設定
 public/index.html    網頁介面
 railway.json         Railway 設定（啟動指令、健康檢查、30 秒緩衝）
 test/platform/       平台測試（模擬 Google API）
-src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 ```
 
 ---
@@ -75,7 +72,7 @@ src/、test/*.js      GAS 單一團隊版（見 docs/gas.md）
 | `DRIVE_FOLDER_NAME` | 組織共用資料夾名稱，預設 `表單限額平台`，也可以在網頁改 |
 | `ADMIN_PASSWORD` | 平台管理員 `chase5ws` 的密碼，第一次登入不用改；忘記密碼時換一個值，見下方說明 |
 
-**之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改 GAS 版或文件不會觸發。資料存在 Volume，不受部署影響。
+**之後每次 push 到 `main`，只要改到平台的程式（`server.js`、`lib/`、`public/`、`package.json`、`railway.json`），Railway 就會自動重新部署。** 只改文件不會觸發。資料存在 Volume，不受部署影響。
 
 ### 部署緩衝（30 秒）
 `railway.json` 已設定 `drainingSeconds: 30`：部署新版時，舊版先收到 SIGTERM，30 秒後才會被強制關閉。這段時間舊版會：
