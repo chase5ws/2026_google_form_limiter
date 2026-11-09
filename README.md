@@ -14,7 +14,8 @@ server.js            進入點
 lib/app.js           API 與權限
 lib/google.js        Google OAuth、Drive、Forms API
 lib/limiter.js       規則判斷、排位、寄通知、每分鐘排程
-lib/mailer.js        寄信（SMTP 或 Resend）
+lib/mailer.js        寄信（GAS、Resend 或 SMTP）
+lib/gas-relay.js     組織 GAS 寄信中繼站的程式碼範本
 lib/db.js            SQLite 資料表
 lib/security.js      密碼雜湊、加密
 lib/runtime.js       自動偵測 Volume、產生金鑰、網頁上的設定
@@ -116,8 +117,15 @@ test/platform/       平台測試（模擬 Google API）
 5. 在資料夾裡建立表單，或把現有表單移進來，回平台按「重新整理」，再按「加入管理」。
 6. 設定名額、開放和截止時間。需要的話，勾選「名額已滿時寄信通知」。
 7. 要寄通知的話，到 **組織設定 → 寄信帳號** 填你們自己的寄信方式，信會用你們的寄件者寄出：
-   - **Resend**（建議）：到 [resend.com](https://resend.com/domains) 驗證你們的網域，填寄件者和 API Key。
-   - **SMTP**：例如組織的 Gmail，填 `smtp.gmail.com`、`465`、Gmail 帳號和[應用程式密碼](https://myaccount.google.com/apppasswords)。**只有平台的 Railway 是 Pro 方案才能用**，Hobby 方案會被封鎖。
+   - **Google Apps Script**（建議）：用組織自己的 Google 帳號寄信，**不用設定 DNS，Railway Hobby 方案也能用**。
+     1. 按「產生程式碼」→「複製」。
+     2. 用要寄信的組織帳號打開 [script.google.com/create](https://script.google.com/create)，貼上程式碼並儲存。
+     3. 部署 → 新增部署作業 → 網頁應用程式。執行身分選「我」，誰可以存取選「所有人」，然後部署並授權。
+     4. 把「網頁應用程式網址」貼回平台，儲存。平台會自動測試連線，並抓出寄件帳號。
+     - 額度：Google Workspace 帳號每天約 1,500 封，一般 Gmail 約 100 封。
+     - 程式碼裡有平台產生的專屬密鑰，沒有密鑰的人沒辦法透過這個網址寄信。
+   - **Resend**：要能在你們網域的 DNS 加驗證紀錄，學校網域通常要請資訊組協助。
+   - **SMTP**：例如 `smtp.gmail.com`、`465`、帳號加[應用程式密碼](https://myaccount.google.com/apppasswords)。**只有平台的 Railway 是 Pro 方案才能用**。
    - 儲存後寄一封測試信確認。
 8. 填寫連結**不變**，照常發給大家就好。
 9. 「帳號」分頁可以新增同事。組織成員能管理表單，但不能設定資料夾、寄信和帳號。
@@ -164,7 +172,7 @@ test/platform/       平台測試（模擬 Google API）
 - 每次檢查最多寄 30 封信，其餘的下一分鐘繼續寄。
 - Forms API 不能改「表單已關閉」時的提示文字，會顯示 Google 預設的訊息。
 - 2025 年以前建立的**舊版表單**不能用 API 開關。請在 Google 表單按「⋮ → 建立副本」，副本是新版格式。
-- Railway Free、Trial、Hobby 方案**封鎖 SMTP**，請改用 Resend。
+- Railway Free、Trial、Hobby 方案**封鎖 SMTP**，請改用 Google Apps Script 或 Resend。
 - SQLite 只能跑 1 個實例。`railway.json` 已經設好 `numReplicas: 1`。
 
 ## 本機開發與測試

@@ -19,7 +19,21 @@ fs.mkdirSync(OUT, { recursive: true });
   const google = createFakeGoogle();
   const sent = [];
   const settings = createSettings({ env: {}, db, cipher: cipher('ui') });
-  const fakeFetch = async (url, opt) => { const b = JSON.parse(opt.body); sent.push({ to: b.to[0], subject: b.subject, from: b.from }); return { ok: true, json: async () => ({}) }; };
+  // 模擬組織部署了平台產生的 GAS：照請求裡的密鑰建立對應的中繼站
+  const { gasScript } = require('../../lib/gas-relay');
+  const vm = require('node:vm');
+  const gasSent = [];
+  const gasFetch = async (url, opt) => {
+    const body = JSON.parse(opt.body);
+    const ctx = { Session: { getEffectiveUser: () => ({ getEmail: () => 'hia.eca@hia.hcc.edu.tw' }) },
+      MailApp: { getRemainingDailyQuota: () => 1500 - gasSent.length, sendEmail: (o) => gasSent.push(o) },
+      ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ setMimeType: () => ({ text: t }) }) }, Logger: { log() {} } };
+    vm.createContext(ctx); vm.runInContext(gasScript(body.secret), ctx);
+    const out = vm.runInContext('doPost', ctx)({ postData: { contents: opt.body } });
+    return { status: 200, text: async () => out.text };
+  };
+  const fakeFetch = async (url, opt) => {
+    if (String(url).startsWith('https://script.google.com/')) return gasFetch(url, opt); const b = JSON.parse(opt.body); sent.push({ to: b.to[0], subject: b.subject, from: b.from }); return { ok: true, json: async () => ({}) }; };
   const platformMailer = Object.assign(createMailer(() => settings.mailEnv(), { fetchImpl: fakeFetch }), { source: 'platform' });
   const mailerFor = (orgId) => { const e = orgId ? settings.orgMailEnv(orgId) : {}; return e.MAIL_FROM ? Object.assign(createMailer(e, { fetchImpl: fakeFetch }), { source: 'org' }) : platformMailer; };
   const limiter = createLimiter({ db, google, mailerFor, log: { error() {} } });
@@ -29,7 +43,7 @@ fs.mkdirSync(OUT, { recursive: true });
   settings.setGoogleClient = (b) => { const r = origSet(b); gcSet = true; return r; };
   const server = http.createServer(createApp({ db, google, limiter, mailerFor, settings,
     runtime: { appUrl: 'https://forms.up.railway.app', redirectUri: 'https://forms.up.railway.app/oauth/google/callback', onRailway: true, volumeMounted: true, dataDir: '/data', dataSource: 'volume', keySource: 'auto', domainFromRailway: true },
-    config: { appUrl: 'http://localhost' } }));
+    config: { appUrl: 'http://localhost', fetchImpl: fakeFetch } }));
   await new Promise(r => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const F1 = '1FormAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', F2 = '1FormBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
@@ -144,11 +158,14 @@ fs.mkdirSync(OUT, { recursive: true });
   await p2.screenshot({ path: path.join(OUT, 'r06-org-users.png') });
   await p2.click('[data-tab=orgsettings]');
   await p2.waitForFunction(() => document.getElementById('omStatus').textContent.length > 0);
-  await p2.selectOption('#omProvider', 'resend');
-  await p2.fill('#omFrom', '新竹社大 <hi@hc.example.com>');
-  await p2.fill('#omResend', 're_hsinchu');
+  await p2.selectOption('#omProvider', 'gas');
+  await p2.click('#omGasGen');
+  await p2.waitForSelector('#omGasCode:not(.hidden)');
+  await p2.fill('#omGasUrl', 'https://script.google.com/macros/s/AKfycbx_uiTestDeploymentId_1234567/exec');
+  await p2.fill('#omGasName', 'HIA 報名通知');
+  await p2.screenshot({ path: path.join(OUT, 'r06a-org-gas.png'), fullPage: true });
   await p2.click('#omSave');
-  await p2.waitForFunction(() => document.getElementById('omStatus').textContent.includes('組織自己'));
+  await p2.waitForFunction(() => document.getElementById('omStatus').textContent.includes('Apps Script'));
   await p2.fill('#omTo', 'boss@hc.example.com'); await p2.click('#omTestBtn');
   await p2.waitForTimeout(2800);
   await p2.screenshot({ path: path.join(OUT, 'r06b-org-mail.png') });
@@ -180,6 +197,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await browser.close(); server.close();
   console.log('組織管理員看到的分頁：', tabs.join('、'));
   console.log('設定完成後提示列還在嗎：', banner ? '是（錯誤）' : '否');
+  console.log('GAS 寄出：', gasSent.map(m => m.to + '｜' + m.name + '｜' + m.subject).join(' / '));
   console.log('寄出的信：', sent.map(m => m.to + '｜' + m.from + '｜' + m.subject).join(' / '));
   console.log(errors.length ? 'PAGE ERRORS: ' + errors.join(' | ') : '沒有前端錯誤');
   console.log('手機橫向捲動：', overflow ? '有' : '沒有');

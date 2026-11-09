@@ -233,3 +233,93 @@ test('ADMIN_ACCOUNT + ADMIN_PASSWORD：自訂帳號直接登入；換帳號會�
   mk('bad name!', 'x');
   assert.ok(db.get("SELECT id FROM users WHERE username = 'chase5ws'"), '格式錯誤時退回 chase5ws');
 });
+
+/* 在 Node 裡執行產生出來的 GAS 程式碼（模擬 MailApp / Session / ContentService） */
+function fakeGasDeployment(code, { email = 'hia.eca@hia.hcc.edu.tw', quota = 1500 } = {}) {
+  const vm = require('node:vm');
+  const sent = [];
+  const ctx = {
+    Session: { getEffectiveUser: () => ({ getEmail: () => email }) },
+    MailApp: { getRemainingDailyQuota: () => quota - sent.length, sendEmail: (o) => sent.push(o) },
+    ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ setMimeType: () => ({ text: t }) }) },
+    Logger: { log() {} }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(code, ctx);
+  const fetchImpl = async (url, opt) => {
+    const out = vm.runInContext('doPost', ctx)({ postData: { contents: opt.body } });
+    return { status: 200, text: async () => out.text };
+  };
+  return { sent, fetchImpl };
+}
+
+test('GAS 寄信中繼：產生程式碼、測試連線抓寄件帳號、用組織帳號寄出、密鑰錯誤會擋', async () => {
+  const { gasScript, callGas } = require('../../lib/gas-relay');
+  const code = gasScript('S'.repeat(32));
+  const dep = fakeGasDeployment(code);
+  const URL1 = 'https://script.google.com/macros/s/AKfycbx_abcdefghijklmnopqrstuvwxyz/exec';
+  assert.deepStrictEqual(await callGas(URL1, { secret: 'S'.repeat(32), action: 'ping' }, dep.fetchImpl), { ok: true, email: 'hia.eca@hia.hcc.edu.tw', quota: 1500 });
+  await assert.rejects(callGas(URL1, { secret: 'wrong', action: 'ping' }, dep.fetchImpl), /密鑰不正確/);
+  await assert.rejects(callGas(URL1, { secret: 'x' }, async () => ({ status: 200, text: async () => '<html>Sign in</html>' })), /所有人/);
+
+  // 透過 API 走完整流程
+  const db = open(':memory:');
+  const box = cipher('k');
+  const settings = createSettings({ env: {}, db, cipher: box });
+  const { createFakeGoogle } = require('./fake-google');
+  const google = createFakeGoogle(); google._connect();
+  let deployment = null;
+  const routedFetch = async (url, opt) => deployment.fetchImpl(url, opt);
+  const mailerFor = (orgId) => { const e = orgId ? settings.orgMailEnv(orgId) : {}; return e.MAIL_FROM ? Object.assign(createMailer(e, { fetchImpl: routedFetch }), { source: 'org' }) : createMailer({}); };
+  const limiter = createLimiter({ db, google, mailerFor, log: { error() {} } });
+  const handle = createApp({ db, google, limiter, mailerFor, settings, config: { appUrl: 'http://x', adminPassword: 'Super2026x', fetchImpl: routedFetch } });
+  const server = http.createServer(handle);
+  await new Promise(r => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let cookie = '';
+  const call = async (method, p, body) => {
+    const res = await fetch(base + p, { method, headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'limiter', Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
+    const sc = res.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    return { status: res.status, data: await res.json() };
+  };
+  try {
+    await call('POST', '/api/login', { username: 'chase5ws', password: 'Super2026x' });
+    const orgId = (await call('POST', '/api/orgs', { name: 'HIA', admin: { username: 'hia', password: 'Nice2026xx' } })).data[0].id;
+    const gen = (await call('POST', '/api/mail/gas-script')).data;
+    assert.ok(gen.secret.length >= 24 && gen.code.includes(gen.secret) && gen.code.includes('function doPost'));
+    deployment = fakeGasDeployment(gen.code);
+
+    let r = await call('PUT', `/api/orgs/${orgId}/mail`, { provider: 'gas', gasUrl: 'https://example.com/x', gasSecret: gen.secret });
+    assert.match(r.data.error, /網頁應用程式網址/);
+    r = await call('PUT', `/api/orgs/${orgId}/mail`, { provider: 'gas', gasUrl: URL1, gasSecret: gen.secret, gasName: 'HIA 報名通知' });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.strictEqual(r.data.gasCheck.email, 'hia.eca@hia.hcc.edu.tw');
+    assert.strictEqual(r.data.effective.from, 'HIA 報名通知 <hia.eca@hia.hcc.edu.tw>');
+    assert.strictEqual(r.data.effective.provider, 'gas');
+    assert.ok(!JSON.stringify(r.data).includes(gen.secret), '密鑰不會傳回網頁');
+
+    // 不重填密鑰也能再儲存（沿用舊的）
+    r = await call('PUT', `/api/orgs/${orgId}/mail`, { provider: 'gas', gasUrl: URL1, gasName: 'HIA' });
+    assert.strictEqual(r.status, 200);
+
+    r = await call('POST', `/api/orgs/${orgId}/mail/test`, { to: 'chase.tseng@hia.hcc.edu.tw' });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+    assert.deepStrictEqual(deployment.sent.map(m => [m.to, m.name]), [['chase.tseng@hia.hcc.edu.tw', 'HIA']]);
+
+    // 候補通知也走 GAS
+    google._folder('F', '表單限額平台'); google._form('FORM_HIA_xxxxxxxxxxxxxxxxx', '研習報名', 'F');
+    db.run('UPDATE orgs SET shared_folder_id = ?, shared_folder_name = ? WHERE id = ?', 'F', '表單限額平台', orgId);
+    const f = (await call('POST', '/api/forms', { org: orgId, formId: 'FORM_HIA_xxxxxxxxxxxxxxxxx' })).data.form;
+    await call('PATCH', '/api/forms/' + f.id, { maxResponses: 2, notifyEnabled: true });
+    google._submit('FORM_HIA_xxxxxxxxxxxxxxxxx', 3);
+    await limiter.checkAll();
+    assert.strictEqual(deployment.sent.length, 2);
+    assert.strictEqual(deployment.sent[1].to, 'p3@example.com');
+    assert.match(deployment.sent[1].subject, /研習報名.*名額已滿/);
+
+    // 部署被換掉（密鑰不同）→ 寄信失敗會記錄、不會當機
+    deployment = fakeGasDeployment(gasScript('Z'.repeat(32)));
+    r = await call('POST', `/api/orgs/${orgId}/mail/test`, { to: 'a@b.cd' });
+    assert.match(r.data.error, /密鑰不正確/);
+  } finally { server.close(); }
+});

@@ -242,9 +242,24 @@
           <label class="field"><span>寄信方式</span>
             <select id="omProvider">
               <option value="none">不設定（使用平台預設，如果有的話）</option>
-              <option value="resend">Resend（建議）</option>
-              <option value="smtp">SMTP，例如 Gmail</option>
+              <option value="gas">Google Apps Script（建議：用組織自己的 Google 帳號寄，免 DNS）</option>
+              <option value="resend">Resend（要能設定網域 DNS）</option>
+              <option value="smtp">SMTP（平台的 Railway 要是 Pro 方案）</option>
             </select></label>
+          <div class="omfield" data-for="gas">
+            <ol class="steps">
+              <li>按「產生程式碼」，再按「複製」。</li>
+              <li>用<b>要寄信的組織帳號</b>登入，打開 <a href="https://script.google.com/create" target="_blank" rel="noopener">script.google.com/create</a>，把編輯器裡的內容全部換成剛剛複製的程式碼，按儲存。</li>
+              <li>右上「部署」→「新增部署作業」→ 齒輪選「網頁應用程式」。執行身分選<b>我</b>，誰可以存取選<b>所有人</b>，按「部署」並授權（看到未驗證的警告，點「進階 → 前往」→ 允許）。</li>
+              <li>複製「網頁應用程式網址」（/exec 結尾），貼在下面，按儲存。平台會先測試連線，並抓出寄件帳號。</li>
+            </ol>
+            <div class="row" style="margin-bottom:10px"><button type="button" class="btn" id="omGasGen">產生程式碼</button><button type="button" class="btn hidden" id="omGasCopy">複製</button>
+              <span class="hint" id="omGasHint"></span></div>
+            <textarea id="omGasCode" class="hidden" rows="8" readonly style="font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-bottom: 12px"></textarea>
+            <label class="field"><span>網頁應用程式網址</span><input type="text" id="omGasUrl" placeholder="https://script.google.com/macros/s/……/exec"></label>
+            <label class="field"><span>寄件人名稱（選填）</span><input type="text" id="omGasName" maxlength="80" placeholder="例如：HIA 報名通知">
+              <div class="hint">收件者看到的名稱；寄件信箱就是部署 GAS 的那個帳號。Google Workspace 帳號每天約可寄 1,500 封，一般 Gmail 約 100 封。</div></label>
+          </div>
           <label class="field omfield" data-for="resend smtp"><span>寄件者</span><input type="text" id="omFrom" placeholder="你的組織 <noreply@你的網域>">
             <div class="hint">收件者看到的寄件人。Resend 要先在 <a href="https://resend.com/domains" target="_blank" rel="noopener">resend.com</a> 驗證網域；Gmail SMTP 請填該 Gmail。</div></label>
           <label class="field omfield" data-for="resend"><span>Resend API Key</span><input type="password" id="omResend" placeholder="re_……" autocomplete="new-password"></label>
@@ -887,9 +902,13 @@
     return GET('/api/orgs/' + S.orgId + '/mail').then(function (r) {
       var c = r.settings || {}, eff = r.effective || {};
       $('omDot').classList.toggle('on', !!eff.enabled);
-      $('omStatus').textContent = !eff.enabled ? '還沒設定寄信' : eff.source === 'org' ? '用組織自己的帳號寄信（' + (eff.provider === 'resend' ? 'Resend' : 'SMTP') + '）' : '目前使用平台預設寄信';
+      var PN = { gas: 'Google Apps Script', resend: 'Resend', smtp: 'SMTP' };
+      $('omStatus').textContent = !eff.enabled ? '還沒設定寄信' : eff.source === 'org' ? '用組織自己的帳號寄信（' + (PN[eff.provider] || eff.provider) + '）' : '目前使用平台預設寄信';
       $('omSub').textContent = eff.enabled ? '寄件者：' + (eff.from || '') : '設定後，候補通知會用你們的寄件者寄出。';
       $('omProvider').value = c.provider || 'none';
+      S.gasSecret = null; $('omGasCode').classList.add('hidden'); $('omGasCopy').classList.add('hidden');
+      $('omGasHint').textContent = c.provider === 'gas' ? '已部署過的話不用重新產生；重新產生會換新的密鑰，要重新部署。' : '';
+      $('omGasUrl').value = c.gasUrl || ''; $('omGasName').value = c.gasName || '';
       $('omFrom').value = c.from || ''; $('omHost').value = c.host || ''; $('omPort').value = c.port || ''; $('omUser').value = c.user || '';
       $('omResend').value = ''; $('omPass').value = '';
       $('omResend').placeholder = c.hasSecret && c.provider === 'resend' ? '已設定，留空代表不變' : 're_……';
@@ -910,10 +929,22 @@
     e.preventDefault();
     run($('omSave'), '儲存中', function () {
       return api('PUT', '/api/orgs/' + S.orgId + '/mail', { provider: $('omProvider').value, from: $('omFrom').value, resendKey: $('omResend').value,
+        gasUrl: $('omGasUrl').value, gasName: $('omGasName').value, gasSecret: S.gasSecret || undefined,
         host: $('omHost').value, port: $('omPort').value, user: $('omUser').value, pass: $('omPass').value })
-        .then(function () { toast('已儲存，可以寄一封測試信確認'); return loadOrgSettings(); });
+        .then(function (r) { toast(r.gasCheck ? '連線成功！寄件帳號：' + r.gasCheck.email + '，今天還能寄 ' + r.gasCheck.quota + ' 封' : '已儲存，可以寄一封測試信確認'); return loadOrgSettings(); });
     });
   });
+  $('omGasGen').addEventListener('click', function () {
+    if (S.gasSecret === null && $('omGasHint').textContent && !confirm('重新產生會換新的密鑰，原本部署的 GAS 要貼上新程式碼並重新部署。確定？')) return;
+    run($('omGasGen'), '產生中', function () {
+      return api('POST', '/api/mail/gas-script').then(function (r) {
+        S.gasSecret = r.secret;
+        $('omGasCode').value = r.code; $('omGasCode').classList.remove('hidden'); $('omGasCopy').classList.remove('hidden');
+        $('omGasHint').textContent = '程式碼裡有專屬密鑰，請不要外流。';
+      });
+    });
+  });
+  $('omGasCopy').addEventListener('click', function () { copy($('omGasCode').value); $('omGasCode').select(); toast('已複製程式碼，貼到 GAS 編輯器'); });
   $('omTestForm').addEventListener('submit', function (e) {
     e.preventDefault();
     run($('omTestBtn'), '寄送中', function () { return api('POST', '/api/orgs/' + S.orgId + '/mail/test', { to: $('omTo').value }).then(function (r) { toast(r.source === 'org' ? '測試信已用組織帳號寄出' : '測試信已用平台預設寄出'); }); });
