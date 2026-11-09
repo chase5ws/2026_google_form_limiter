@@ -95,6 +95,7 @@
   .pill.unknown { color: var(--muted); background: #eef0f3; }
   .meter { height: 8px; background: #eef0f3; border-radius: 99px; overflow: hidden; margin: 12px 0 6px; }
   .meter > b { display: block; height: 100%; background: var(--brand); border-radius: 99px; }
+  .meter.y > b { background: #e0b43a; }
   .meter.full > b { background: var(--bad); }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 16px; margin: 10px 0 12px; font-size: 14px; }
   .facts div span { color: var(--muted); margin-right: 6px; }
@@ -142,8 +143,15 @@
   .qtable input { width: 90px; padding: 5px 8px; }
   .qhead { font-weight: 600; margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .qsum { font-size: 13px; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-  .qsum .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: #fff; }
-  .qsum .chip.full { border-color: #f3c7c2; background: var(--bad-weak); color: var(--bad); }
+  /* 像電池電量：依額滿程度填滿，綠（還很多）→ 黃（快滿）→ 紅（額滿） */
+  .bat { position: relative; display: inline-flex; align-items: center; gap: 6px; overflow: hidden; border: 1px solid #b9e3cd; border-radius: 8px; padding: 3px 10px; background: #fff; font-size: 13px; min-width: 120px; }
+  .bat > i { position: absolute; left: 0; top: 0; bottom: 0; background: #d9f2e5; transition: width .4s; }
+  .bat > span { position: relative; }
+  .bat b { font-variant-numeric: tabular-nums; }
+  .bat.y { border-color: #ecd27e; } .bat.y > i { background: #fbefc3; }
+  .bat.r { border-color: #eea59d; color: var(--bad); } .bat.r > i { background: #fbd9d5; }
+  .bat .gone { font-size: 11px; }
+  .optrow .cnt .bat { min-width: 0; padding: 2px 6px; justify-content: center; width: 100%; }
   .sim-res pre { white-space: pre-wrap; background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 13px/1.6 inherit; margin: 6px 0 12px; }
   .gcard { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .gdot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); flex: none; }
@@ -767,6 +775,13 @@
     return GET('/api/forms?org=' + orgId()).then(function (l) { S.forms = l; renderForms(); })
       .catch(function (e) { $('formsList').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
   }
+  /* 電池樣式：count/limit，依比例填色（綠 < 70%、黃 70–99%、紅 額滿） */
+  function battery(count, limit, label, note) {
+    var p = limit > 0 ? Math.min(100, Math.round(count / limit * 100)) : 100;
+    var c = count >= limit ? 'r' : p >= 70 ? 'y' : 'g';
+    return '<span class="bat ' + c + '" title="' + count + ' / ' + limit + '（' + p + '%）"><i style="width:' + p + '%"></i><span>' +
+      (label ? label + ' ' : '') + '<b>' + count + '/' + limit + '</b>' + (note ? ' <span class="gone">' + note + '</span>' : '') + '</span></span>';
+  }
   function statusOf(f) {
     if (f.state === 'open') return { c: 'open', t: '開放中' };
     if (f.state === 'closed') return { c: f.reason === 'notyet' ? 'wait' : 'closed', t: '已關閉・' + f.reasonText };
@@ -783,12 +798,12 @@
       return '<article class="fcard" data-id="' + f.id + '">' +
         '<div class="row"><h3 style="flex:1">' + esc(f.title) + '</h3><span class="pill ' + st.c + '">' + esc(st.t) + '</span></div>' +
         (f.maxResponses
-          ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
+          ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : pct >= 70 ? ' y' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
           : '<div class="small" style="margin-top:10px">目前 <b>' + cnt + '</b> 份・不限名額</div>') +
         '<div class="facts"><div><span>開放</span>' + (fmt(f.openAt) || '立即') + '</div><div><span>截止</span>' + (fmt(f.closeAt) || '不截止') + '</div><div><span>上次檢查</span>' + (fmt(f.lastCheck) || '–') + '</div></div>' +
         (f.optionQuotas && f.optionQuotas.length ? f.optionQuotas.map(function (q) {
           return '<div class="qsum"><b>' + esc(q.title) + '</b>' + q.options.map(function (o) {
-            return '<span class="chip' + (o.count >= o.limit ? ' full' : '') + '">' + esc(o.value) + ' ' + o.count + '/' + o.limit + (o.hidden ? '・已移除' : '') + '</span>';
+            return battery(o.count, o.limit, esc(o.value), o.hidden ? '已移除' : '');
           }).join('') + '</div>';
         }).join('') : '') +
         (f.notify.enabled ? '<div class="small" style="margin-bottom:10px">名額已滿通知：已寄候補 <b>' + f.notify.stats.waitlist + '</b>、遞補 <b>' + f.notify.stats.promoted + '</b>' +
@@ -950,7 +965,7 @@
         '<div class="optrow head"><span>選項名稱</span><span class="cnt">目前</span><span>名額</span><span class="ops"></span></div>' +
         d.options.map(function (o, i) {
           return '<div class="optrow" data-i="' + i + '"><input type="text" data-f="value" value="' + esc(o.value) + '" placeholder="選項名稱">' +
-            '<span class="cnt">' + (o.from == null ? '新' : o.count) + (o.hidden ? '<div><span class="tag off">已額滿移除</span></div>' : '') + '</span>' +
+            '<span class="cnt">' + (o.from == null ? '新' : String(o.limit).trim() !== '' && !isNaN(Number(o.limit)) ? battery(o.count, Number(o.limit), '', '') : o.count) + (o.hidden ? '<div><span class="tag off">已額滿移除</span></div>' : '') + '</span>' +
             '<input type="number" min="0" step="1" data-f="limit" placeholder="不限" value="' + esc(o.limit) + '">' +
             '<span class="ops"><button type="button" class="btn" data-qa="up"' + (i ? '' : ' disabled') + '>上移</button><button type="button" class="btn" data-qa="down"' + (i < d.options.length - 1 ? '' : ' disabled') + '>下移</button><button type="button" class="btn danger" data-qa="del">刪除</button></span></div>';
         }).join('') +
