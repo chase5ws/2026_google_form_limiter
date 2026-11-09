@@ -48,7 +48,10 @@ fs.mkdirSync(OUT, { recursive: true });
   const base = `http://127.0.0.1:${server.address().port}`;
   const F1 = '1FormAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', F2 = '1FormBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
   google._folder('HSINCHU_FOLDER_ID_01', '表單限額平台', { owner: 'boss@hc.example.com' });
-  google._form(F1, '十二月講座報名', 'HSINCHU_FOLDER_ID_01');
+  google._form(F1, '十二月講座報名', 'HSINCHU_FOLDER_ID_01', { items: [
+    { itemId: 'pb', title: '場次選擇', pageBreakItem: {} },
+    { itemId: 'slotItem', title: '場次', questionItem: { question: { questionId: 'slot', choiceQuestion: { type: 'RADIO', options: [{ value: '上午場' }, { value: '下午場' }, { value: '晚上場' }] } } } }
+  ] });
   google._form(F2, '志工招募', 'HSINCHU_FOLDER_ID_01');
   google._form('1FormCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC', '2024 年度問卷（舊版）', 'HSINCHU_FOLDER_ID_01', { legacy: true });
 
@@ -121,10 +124,14 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.waitForSelector('#dlgForm[open]');
   await page.fill('#feMax', '30');
   await page.fill('#feClose', '2026-12-20T18:00');
+  await page.waitForSelector('#feQBox:not(.hidden)');
+  await page.fill('input[data-q="slot"][data-v="上午場"]', '5');
+  await page.fill('input[data-q="slot"][data-v="下午場"]', '3');
   await page.check('#feNotify');
   await page.waitForFunction(() => document.querySelectorAll('#feSource option').length > 1);
   await page.click('details summary');
   await page.waitForTimeout(200);
+  await page.$eval('#feQBox', el => el.scrollIntoView());
   await shot('r03-form-settings');
   await page.click('#feSave');
   await page.waitForSelector('#dlgForm', { state: 'hidden' });
@@ -134,7 +141,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.check('#feNotify');
   await page.click('#feSave');
   await page.waitForSelector('#dlgForm', { state: 'hidden' });
-  google._submit(F1, 12); google._submit(F2, 8);
+  google._submit(F1, 12, null, (k) => ({ slot: k <= 3 ? '下午場' : '上午場' })); google._submit(F2, 8);
   await page.click('#btnCheckAll');
   await page.waitForFunction(() => document.querySelectorAll('.pill.closed').length === 1);
   await page.waitForTimeout(3000);
@@ -143,6 +150,19 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.waitForFunction(() => document.querySelectorAll('#ntRows tr').length === 3);
   await shot('r05-notices');
   await page.click('#dlgNotices [data-close]');
+
+  step('測試按鈕');
+  const simBtn = page.locator('.fcard', { hasText: '十二月講座報名' }).locator('[data-act=sim]');
+  await simBtn.click();
+  await page.waitForSelector('#simChoices select');
+  await page.selectOption('#simChoices select', '上午場');
+  await page.fill('#simCount', '2');
+  await page.fill('#simEmail', 'chase@example.com');
+  await page.click('#simBtn');
+  await page.waitForSelector('#simResult .sim-res');
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(OUT, 'r05b-simulate.png'), fullPage: false });
+  await page.click('#dlgSim [data-close]');
 
   step('組織管理員視角');
   const p2 = await (await browser.newContext({ viewport: { width: 1120, height: 900 } })).newPage();

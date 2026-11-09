@@ -26,16 +26,24 @@ function createFakeGoogle() {
     _connect() { connected = true; },
     _folder(id, name, opts = {}) { files.set(id, { id, name, mimeType: FOLDER_MIME, owner: opts.owner || 'org@example.com', sharedWithPlatform: opts.shared !== false, role: opts.role || 'writer' }); },
     _form(id, name, parent, opts = {}) {
+      const items = [{ itemId: 'i1', title: '聯絡 Email', questionItem: { question: { questionId: 'q1', textQuestion: {} } } }].concat(opts.items || []);
       files.set(id, { id, name, mimeType: FORM_MIME, parent, owner: opts.owner || 'org@example.com', legacy: !!opts.legacy, responses: [], published: true, accepting: true,
-        collectsEmail: opts.collectsEmail !== false, questions: opts.questions || [{ id: 'q1', title: '聯絡 Email' }] });
+        collectsEmail: opts.collectsEmail !== false, questions: opts.questions || [{ id: 'q1', title: '聯絡 Email' }], items });
     },
-    _submit(id, n = 1, emailFn) {
+    _submit(id, n = 1, emailFn, choiceFn) {
       const f = files.get(id);
       for (let i = 0; i < n; i++) {
         const k = f.responses.length + 1;
         const email = emailFn ? emailFn(k) : `p${k}@example.com`;
-        f.responses.push({ responseId: 'R' + String(++seq).padStart(6, '0'), createTime: new Date(Date.UTC(2026, 10, 7, 0, 0, k)).toISOString(), respondentEmail: email, answers: { q1: { textAnswers: { answers: [{ value: 'alt-' + email }] } } } });
+        const answers = { q1: { textAnswers: { answers: [{ value: 'alt-' + email }] } } };
+        const ch = choiceFn ? choiceFn(k) : {};
+        for (const [qid, v] of Object.entries(ch)) answers[qid] = { textAnswers: { answers: [].concat(v).map(x => ({ value: x })) } };
+        f.responses.push({ responseId: 'R' + String(++seq).padStart(6, '0'), createTime: new Date(Date.UTC(2026, 10, 7, 0, 0, k + (f.responses.length * 0))).toISOString().replace('Z', '') + String(seq).padStart(3, '0') + 'Z', respondentEmail: email, answers });
       }
+    },
+    _options(id, questionId) {
+      const it = files.get(id).items.find(i => i.questionItem && i.questionItem.question.questionId === questionId);
+      return it.questionItem.question.choiceQuestion.options.map(o => o.isOther ? '(其他)' : o.value);
     },
     _delete(id, responseIndex) { files.get(id).responses.splice(responseIndex, 1); },
 
@@ -62,6 +70,21 @@ function createFakeGoogle() {
       const f = need(id);
       return { formId: id, info: { title: f.name }, responderUri: `https://docs.google.com/forms/d/e/R_${id}/viewform`,
         publishSettings: f.legacy ? undefined : { publishState: { isPublished: f.published, isAcceptingResponses: f.accepting } } };
+    },
+    async getFormFull(id) {
+      guard(); calls.push(['getFormFull', id]);
+      const f = need(id);
+      return { formId: id, info: { title: f.name }, items: JSON.parse(JSON.stringify(f.items)), publishSettings: f.legacy ? undefined : { publishState: { isPublished: f.published, isAcceptingResponses: f.accepting } } };
+    },
+    async updateChoiceOptions(id, { itemId, questionId, type, options }) {
+      guard(); calls.push(['updateChoiceOptions', id, questionId, options.map(o => o.value)]);
+      const f = need(id);
+      if (!canEdit(f)) throw httpError(403, 'The caller does not have permission');
+      const it = f.items.find(i => i.itemId === itemId);
+      if (!it || it.questionItem.question.questionId !== questionId) throw httpError(400, 'item mismatch');
+      if (!options.length) throw httpError(400, 'choice question needs at least one option');
+      it.questionItem.question.choiceQuestion = { type, options: JSON.parse(JSON.stringify(options)) };
+      return {};
     },
     async formQuestions(id) { const f = need(id); return { collectsEmail: f.collectsEmail, questions: f.questions }; },
     async countResponses(id) { guard(); calls.push(['countResponses', id]); return need(id).responses.length; },

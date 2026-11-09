@@ -117,6 +117,15 @@
   .copyrow input { font-family: ui-monospace, Menlo, monospace; font-size: 13px; background: #f7f8fa; }
   .banner { background: var(--warn-weak); color: var(--warn); border-bottom: 1px solid #f3dcb8; font-size: 14px; }
   .banner > div { max-width: 1080px; margin: 0 auto; padding: 8px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .qtable { width: 100%; font-size: 14px; margin: 4px 0 10px; }
+  .qtable td, .qtable th { padding: 6px 4px; }
+  .qtable input { width: 90px; padding: 5px 8px; }
+  .qhead { font-weight: 600; margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .qsum { font-size: 13px; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .qsum .chip { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: #fff; }
+  .qsum .chip.full { border-color: #f3c7c2; background: var(--bad-weak); color: var(--bad); }
+  .sim-res { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; font-size: 14px; }
+  .sim-res pre { white-space: pre-wrap; background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: 13px/1.6 inherit; margin: 6px 0 12px; }
   .gcard { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
   .gdot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
   .gdot.on { background: var(--ok); }
@@ -344,6 +353,15 @@
       <label class="field"><span>截止時間</span><input type="datetime-local" id="feClose"><div class="hint">留空代表不截止</div></label>
     </div>
     <fieldset>
+      <legend>選項名額</legend>
+      <div class="hint" style="margin:-2px 0 10px">替選擇題的每個選項設名額，例如場次 A 30 人。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。</div>
+      <div id="feQLoading" class="small muted"><span class="spin"></span> 讀取表單題目中…</div>
+      <div id="feQBox" class="hidden">
+        <label class="field"><span>段落</span><select id="feSection"></select></label>
+        <div id="feQuestions"></div>
+      </div>
+    </fieldset>
+    <fieldset>
       <legend>名額已滿時寄信通知</legend>
       <label class="chk"><input type="checkbox" id="feNotify"> 依送出順序排位，寄信給沒排進名額的人</label>
       <div id="feNotifyBox">
@@ -352,7 +370,7 @@
           <div class="hint" id="feSourceHint"></div></label>
         <details>
           <summary>自訂信件內容</summary>
-          <div class="hint" style="margin-bottom:10px">可用：<code>{title}</code> 表單名稱、<code>{org}</code> 組織、<code>{rank}</code> 順位、<code>{limit}</code> 名額、<code>{waitlist}</code> 候補第幾位。留空用預設內容。</div>
+          <div class="hint" style="margin-bottom:10px">可用：<code>{title}</code> 表單名稱、<code>{org}</code> 組織、<code>{rank}</code> 順位、<code>{limit}</code> 名額、<code>{waitlist}</code> 候補第幾位、<code>{option}</code> 額滿的選項、<code>{full}</code> 「某選項的名額 N 位」或「本次名額 N 位」。留空用預設內容。</div>
           <label class="field"><span>候補信主旨</span><input type="text" id="feWS"></label>
           <label class="field"><span>候補信內容</span><textarea id="feWB" rows="5"></textarea></label>
           <label class="field"><span>遞補成功信主旨</span><input type="text" id="fePS"></label>
@@ -364,6 +382,22 @@
     <div class="hint">系統每分鐘檢查一次，開關可能會晚 1 分鐘左右。</div>
   </div>
   <div class="dlg-foot"><button type="button" class="btn" data-close>取消</button><button class="btn primary" id="feSave">儲存並套用</button></div>
+</form></dialog>
+
+<!-- 測試 -->
+<dialog id="dlgSim"><form id="simForm">
+  <div class="dlg-head" id="simTitle">測試</div>
+  <div class="dlg-body">
+    <div class="hint" style="margin-bottom:12px">模擬幾筆報名送出，看名額、選項和寄信會怎麼處理。<b>不會改動真的表單和回覆</b>；如果模擬的報名超額，會把候補信加上「[測試]」寄給你。</div>
+    <div id="simErr" class="err hidden"></div>
+    <div id="simChoices"><div class="small muted"><span class="spin"></span> 讀取表單題目中…</div></div>
+    <div class="grid2">
+      <label class="field"><span>模擬幾筆</span><input type="number" id="simCount" min="1" max="50" value="1"></label>
+      <label class="field"><span>測試信寄到</span><input type="email" id="simEmail" placeholder="你的 Email"></label>
+    </div>
+    <div id="simResult"></div>
+  </div>
+  <div class="dlg-foot"><button type="button" class="btn" data-close>關閉</button><button class="btn primary" id="simBtn">模擬送出</button></div>
 </form></dialog>
 
 <!-- 通知紀錄 -->
@@ -577,6 +611,11 @@
           ? '<div class="meter' + (f.count >= f.maxResponses ? ' full' : '') + '"><b style="width:' + pct + '%"></b></div><div class="small"><b>' + cnt + '</b> / ' + f.maxResponses + ' 份' + (f.count != null ? '・剩 ' + Math.max(0, f.maxResponses - f.count) + ' 份' : '') + '</div>'
           : '<div class="small" style="margin-top:10px">目前 <b>' + cnt + '</b> 份・不限名額</div>') +
         '<div class="facts"><div><span>開放</span>' + (fmt(f.openAt) || '立即') + '</div><div><span>截止</span>' + (fmt(f.closeAt) || '不截止') + '</div><div><span>上次檢查</span>' + (fmt(f.lastCheck) || '–') + '</div></div>' +
+        (f.optionQuotas && f.optionQuotas.length ? f.optionQuotas.map(function (q) {
+          return '<div class="qsum"><b>' + esc(q.title) + '</b>' + q.options.map(function (o) {
+            return '<span class="chip' + (o.count >= o.limit ? ' full' : '') + '">' + esc(o.value) + ' ' + o.count + '/' + o.limit + (o.hidden ? '・已移除' : '') + '</span>';
+          }).join('') + '</div>';
+        }).join('') : '') +
         (f.notify.enabled ? '<div class="small" style="margin-bottom:10px">✉️ 名額已滿通知：已寄候補 <b>' + f.notify.stats.waitlist + '</b>、遞補 <b>' + f.notify.stats.promoted + '</b>' +
           (f.notify.stats.failed ? '、<span style="color:var(--bad)">失敗 ' + f.notify.stats.failed + '</span>' : '') + (f.notify.stats.skipped ? '、沒有 Email ' + f.notify.stats.skipped : '') +
           ' <button class="btn sm ghost" data-act="notices">寄信紀錄</button></div>' : '') +
@@ -586,6 +625,7 @@
           '<button class="btn sm primary" data-act="edit">設定</button>' +
           (f.manualClosed ? '<button class="btn sm" data-act="open">開放</button>' : '<button class="btn sm" data-act="close">立即關閉</button>') +
           '<button class="btn sm" data-act="check">檢查</button>' +
+          '<button class="btn sm" data-act="sim">🧪 測試</button>' +
           '<a class="btn sm ghost" href="' + esc(f.editUrl) + '" target="_blank" rel="noopener">編輯表單／看回覆 ↗</a>' +
           '<button class="btn sm ghost danger" data-act="remove" style="margin-left:auto">移出管理</button>' +
         '</div></article>';
@@ -598,6 +638,7 @@
     if (act === 'copylink') { copy(f.responderUrl); return toast('已複製填寫連結'); }
     if (act === 'edit') return openFormDlg(f);
     if (act === 'notices') return openNotices(f);
+    if (act === 'sim') return openSim(f);
     if (act === 'check') return run(b, '檢查中', function () { return api('POST', '/api/forms/' + id + '/check').then(function (r) { replaceForm(r.form); }); });
     if (act === 'close') { if (!confirm('確定立即關閉「' + f.title + '」？\n之後要按「開放」才會恢復。')) return;
       return run(b, '關閉中', function () { return api('POST', '/api/forms/' + id + '/open', { open: false }).then(function (r) { replaceForm(r.form); toast('已關閉'); }); }); }
@@ -664,6 +705,7 @@
     $('feMax').value = f.maxResponses || '';
     $('feOpen').value = toLocalInput(f.openAt); $('feClose').value = toLocalInput(f.closeAt);
     $('feCountHint').textContent = (f.count == null ? '' : '目前已有 ' + f.count + ' 份回覆。') + '留空代表不限名額。';
+    loadQuotaEditor(f);
     var n = f.notify || {};
     $('feNotify').checked = !!n.enabled;
     var om = (orgObj() || {}).mail;
@@ -699,12 +741,94 @@
       }).join('') : '<tr><td colspan="5" class="muted">還沒有寄過信</td></tr>';
     }).catch(function (e) { $('ntRows').innerHTML = '<tr><td colspan="5">' + esc(e.message) + '</td></tr>'; });
   }
+  /* ---------- 選項名額編輯 ---------- */
+  function loadQuotaEditor(f) {
+    S.qStruct = null; S.qDraft = {};
+    $('feQLoading').classList.remove('hidden'); $('feQLoading').innerHTML = '<span class="spin"></span> 讀取表單題目中…';
+    $('feQBox').classList.add('hidden');
+    GET('/api/forms/' + f.id + '/structure').then(function (st) {
+      if (S.editing !== f.id) return;
+      S.qStruct = st;
+      st.sections.forEach(function (sec) { sec.questions.forEach(function (q) {
+        var lim = {}; q.options.forEach(function (o) { lim[o.value] = o.limit == null ? '' : String(o.limit); });
+        S.qDraft[q.questionId] = lim;
+      }); });
+      var withQ = st.sections.filter(function (sec) { return sec.questions.length; });
+      if (!withQ.length) { $('feQLoading').textContent = '這份表單沒有單選、多選或下拉題，無法設定選項名額。'; return; }
+      $('feSection').innerHTML = st.sections.map(function (sec) {
+        var used = sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); });
+        return '<option value="' + sec.index + '"' + (sec.questions.length ? '' : ' disabled') + '>第 ' + sec.index + ' 段：' + esc(sec.title) + '（' + sec.questions.length + ' 題選擇題' + (used ? '・已設名額' : '') + '）</option>';
+      }).join('');
+      var first = withQ.filter(function (sec) { return sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); }); })[0] || withQ[0];
+      $('feSection').value = first.index;
+      renderQuotaQuestions();
+      $('feQLoading').classList.add('hidden'); $('feQBox').classList.remove('hidden');
+    }).catch(function (e) { $('feQLoading').textContent = '讀不到表單題目：' + e.message; });
+  }
+  function renderQuotaQuestions() {
+    var sec = S.qStruct.sections.filter(function (x) { return String(x.index) === $('feSection').value; })[0];
+    $('feQuestions').innerHTML = sec.questions.map(function (q) {
+      return '<div class="qhead">' + esc(q.title) + '<span class="tag">' + q.typeText + '</span>' + (q.hasOther ? '<span class="tag">有「其他」，不限額</span>' : '') + '</div>' +
+        '<table class="qtable"><thead><tr><th>選項</th><th>目前</th><th>名額</th></tr></thead><tbody>' + q.options.map(function (o) {
+          return '<tr><td>' + esc(o.value) + (o.hidden ? ' <span class="tag off">已移除</span>' : '') + '</td><td>' + o.count + '</td>' +
+            '<td><input type="number" min="0" step="1" placeholder="不限" data-q="' + esc(q.questionId) + '" data-v="' + esc(o.value) + '" value="' + esc(S.qDraft[q.questionId][o.value]) + '"></td></tr>';
+        }).join('') + '</tbody></table>';
+    }).join('');
+  }
+  $('feSection').addEventListener('change', renderQuotaQuestions);
+  $('feQuestions').addEventListener('input', function (e) {
+    var el = e.target; if (!el.dataset.q) return;
+    S.qDraft[el.dataset.q][el.dataset.v] = el.value;
+  });
+  function quotaPayload() {
+    if (!S.qStruct) return undefined; // 沒讀到題目就不動既有設定
+    return Object.keys(S.qDraft).map(function (qid) { return { questionId: qid, limits: S.qDraft[qid] }; })
+      .filter(function (x) { return Object.keys(x.limits).some(function (k) { return String(x.limits[k]).trim() !== ''; }); });
+  }
+
+  /* ---------- 測試（模擬送出） ---------- */
+  function openSim(f) {
+    S.simFormId = f.id; S.simStruct = null;
+    $('simTitle').textContent = '🧪 測試・' + f.title;
+    $('simEmail').value = S.me.email || ''; $('simCount').value = 1;
+    $('simResult').innerHTML = ''; showErr('simErr', '');
+    $('simChoices').innerHTML = '<div class="small muted"><span class="spin"></span> 讀取表單題目中…</div>';
+    $('dlgSim').showModal();
+    GET('/api/forms/' + f.id + '/structure').then(function (st) {
+      S.simStruct = st;
+      var qs = [];
+      st.sections.forEach(function (sec) { sec.questions.forEach(function (q) { if (q.options.some(function (o) { return o.limit != null; })) qs.push({ q: q, sec: sec }); }); });
+      if (!qs.length) { $('simChoices').innerHTML = '<div class="note warn">這份表單還沒設定選項名額，模擬時只會檢查總名額。</div>'; return; }
+      $('simChoices').innerHTML = qs.map(function (x) {
+        return '<label class="field"><span>第 ' + x.sec.index + ' 段・' + esc(x.q.title) + '</span><select data-q="' + esc(x.q.questionId) + '">' +
+          x.q.options.map(function (o) { return '<option value="' + esc(o.value) + '">' + esc(o.value) + '（' + o.count + (o.limit != null ? '/' + o.limit : '') + (o.hidden ? '・已移除' : '') + '）</option>'; }).join('') + '</select></label>';
+      }).join('');
+    }).catch(function (e) { $('simChoices').innerHTML = '<div class="note bad">讀不到表單題目：' + esc(e.message) + '</div>'; });
+  }
+  $('simForm').addEventListener('submit', function (e) {
+    e.preventDefault(); showErr('simErr', '');
+    var choices = {}; document.querySelectorAll('#simChoices select').forEach(function (s) { choices[s.dataset.q] = s.value; });
+    var b = $('simBtn'); busy(b, true, '模擬中');
+    api('POST', '/api/forms/' + S.simFormId + '/simulate', { choices: choices, count: $('simCount').value, email: $('simEmail').value }).then(function (r) {
+      var st = function (x) { return x.open ? '開放中' : '關閉（' + x.reason + '）'; };
+      var html = '<div><b>表單狀態</b>：' + st(r.before) + '（' + r.before.count + ' 份）→ <b>' + st(r.after) + '</b>（' + r.after.count + ' 份）</div>';
+      if (r.options.length) html += '<table class="qtable" style="margin-top:8px"><thead><tr><th>選項</th><th>名額</th><th>模擬前</th><th>模擬後</th><th>結果</th></tr></thead><tbody>' +
+        r.options.map(function (o) { return '<tr><td>' + esc(o.question) + '：' + esc(o.option) + '</td><td>' + o.limit + '</td><td>' + o.before + '</td><td>' + o.after + '</td><td>' + esc(o.status) + '</td></tr>'; }).join('') + '</tbody></table>';
+      if (r.errors.length) html += '<div class="note bad">' + esc(r.errors.join(' ')) + '</div>';
+      if (r.notices.length) html += '<div style="margin-top:8px"><b>這次模擬的報名會收到 ' + r.notices.length + ' 封候補信</b>，內容像這樣：</div><pre><b>' + esc(r.notices[0].subject) + '</b>\n\n' + esc(r.notices[0].text) + '</pre>';
+      else html += '<div class="note ok" style="margin-top:8px">這次模擬的報名都在名額內，不會收到候補信。</div>';
+      html += r.mail.sent ? '<div class="note ok">已把測試信寄到 ' + esc(r.mail.to) + '，請檢查收件匣（也看看垃圾郵件）。</div>' : (r.notices.length ? '<div class="note warn">沒有寄出測試信：' + esc(r.mail.reason) + '</div>' : '');
+      $('simResult').innerHTML = '<div class="sim-res">' + html + '</div>';
+    }).catch(function (e) { showErr('simErr', e.message); }).finally(function () { busy(b, false); });
+  });
+
   $('formEdit').addEventListener('submit', function (e) {
     e.preventDefault(); showErr('feErr', ''); var b = $('feSave'); busy(b, true, '儲存中');
     api('PATCH', '/api/forms/' + S.editing, {
       maxResponses: $('feMax').value, openAt: fromLocalInput($('feOpen').value), closeAt: fromLocalInput($('feClose').value),
       notifyEnabled: $('feNotify').checked, notifySource: $('feSource').value,
-      waitlistSubject: $('feWS').value, waitlistBody: $('feWB').value, promoteSubject: $('fePS').value, promoteBody: $('fePB').value
+      waitlistSubject: $('feWS').value, waitlistBody: $('feWB').value, promoteSubject: $('fePS').value, promoteBody: $('fePB').value,
+      optionQuotas: quotaPayload()
     }).then(function (r) { replaceForm(r.form); $('dlgForm').close(); toast('已儲存，目前狀態：' + statusOf(r.form).t); })
       .catch(function (e) { showErr('feErr', e.message); }).finally(function () { busy(b, false); });
   });
