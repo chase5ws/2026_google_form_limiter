@@ -58,6 +58,16 @@ test('SMTP：認證、中文主旨與內容、錯誤回報', async () => {
   } finally { s.server.close(); }
 });
 
+test('SMTP 連不上時，錯誤訊息會說明是 Railway 封鎖或主機打錯', async () => {
+  const net2 = require('node:net');
+  const srv = net2.createServer(); await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const port = srv.address().port; srv.close(); await new Promise(r => setTimeout(r, 50));
+  const m = createMailer({ SMTP_HOST: '127.0.0.1', SMTP_PORT: String(port), SMTP_SECURE: 'false', SMTP_USER: 'a', SMTP_PASS: 'b', MAIL_FROM: 'a@b.c' });
+  await assert.rejects(m.send({ to: 'x@y.z', subject: 's', text: 't' }), /ECONNREFUSED.*Railway.*Redeploy/);
+  const m2 = createMailer({ SMTP_HOST: 'no-such-host.invalid', SMTP_PORT: '465', SMTP_USER: 'a', SMTP_PASS: 'b', MAIL_FROM: 'a@b.c' });
+  await assert.rejects(m2.send({ to: 'x@y.z', subject: 's', text: 't' }), /找不到主機|Railway/);
+});
+
 test('Resend：用 HTTPS API 寄信', async () => {
   const calls = [];
   const mailer = createMailer({ RESEND_API_KEY: 're_test', MAIL_FROM: 'noreply@example.com' }, {
