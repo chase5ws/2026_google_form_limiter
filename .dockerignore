@@ -1,0 +1,8 @@
+# 不需要放進 Railway 映像檔的東西
+.git
+.github
+node_modules
+data
+test
+*.md
+.DS_Store

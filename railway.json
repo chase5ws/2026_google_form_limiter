@@ -4,6 +4,7 @@
     "watchPatterns": [
       "/server.js",
       "/package.json",
+      "/package-lock.json",
       "/railway.json",
       "/lib/**",
       "/public/**"
