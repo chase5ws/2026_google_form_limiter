@@ -266,11 +266,12 @@ test('完整流程', async (t) => {
     assert.strictEqual((await login(base, 'yuntech', 'YunOwn2026')).r.status, 429);
   });
 
-  await t.test('紀錄：組織只看得到自己的', async () => {
+  await t.test('紀錄：只有平台擁有者看得到', async () => {
     const a2 = (await login(base, 'hsinchu', 'MyOrgPw2026')).c;
-    const logs = (await a2.get('/api/logs?org=' + orgA)).data;
+    assert.strictEqual((await a2.get('/api/logs?org=' + orgA)).status, 403, '組織管理員看不到');
+    assert.strictEqual((await a2.get('/api/logs?org=platform')).status, 403);
+    const logs = (await su.get('/api/logs?org=' + orgA)).data;
     assert.ok(logs.some(l => l.what.includes('連結共用資料夾')));
     assert.ok(logs.some(l => l.what.includes('寄出')));
-    assert.strictEqual((await a2.get('/api/logs?org=platform')).status, 403);
   });
 });

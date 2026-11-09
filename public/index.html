@@ -53,7 +53,7 @@
   .auth .brand-logo { height: 64px; width: auto; display: block; margin: 0 0 14px; }
   .orgpick { display: flex; align-items: center; gap: 6px; }
   .orgpick select { width: auto; padding: 5px 8px; max-width: 220px; }
-  #btnPlatform.on { border-color: var(--brand); color: var(--brand); background: var(--brand-weak); }
+  #btnOrgSettings.on { border-color: var(--brand); color: var(--brand); background: var(--brand-weak); }
   .me { margin-left: auto; display: flex; align-items: center; gap: 6px; }
   /* 頁面連結放在標題列右上角（不另外放一排分頁） */
   .navlinks { display: flex; gap: 2px; flex-wrap: wrap; }
@@ -195,7 +195,7 @@
     <div class="bar">
       <div class="logo"><img alt="" src="data:image/png;base64,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"><span id="brandName">Chase's Google Form Limiter平台</span></div>
       <div class="orgpick hidden" id="orgPick"><span class="small muted">管理組織</span><select id="orgSelect"></select></div>
-      <button class="btn sm hidden" id="btnPlatform">⚙️ 平台設定</button>
+      <button class="btn sm hidden" id="btnOrgSettings">⚙️ 組織設定</button>
       <div class="me">
         <nav class="navlinks" id="tabs"></nav>
         <span class="who small muted" id="meName"></span>
@@ -210,24 +210,16 @@
     <div id="pForms" class="panel">
       <div class="card" id="folderCard">
         <div id="noGoogle" class="note warn hidden">平台還沒連接 Google 帳號，暫時不能加入表單。請聯絡平台管理員。</div>
-        <div id="folderSetup" class="hidden">
-          <div class="section-head"><h2>第一步：連結共用資料夾</h2></div>
-          <ol class="steps">
-            <li>在你的 Google 雲端硬碟建立一個資料夾，名稱必須是 <code class="fname">…</code>。</li>
-            <li>對資料夾按右鍵 →「共用」，把 <code class="pemail">…</code> 加為<b>編輯者</b>。</li>
-            <li>打開資料夾，複製網址列的連結，貼在下面。</li>
-          </ol>
-          <form id="folderForm" class="row">
-            <input type="text" class="grow" id="folderUrl" placeholder="https://drive.google.com/drive/folders/…" required>
-            <button class="btn primary" id="folderBtn">連結資料夾</button>
-          </form>
-          <div class="hint">表單、回覆和上傳的檔案都會留在你們自己的雲端硬碟，平台只負責開關表單。</div>
-          <div id="folderMemberNote" class="note warn hidden" style="margin-top:10px">只有組織管理員可以連結資料夾，請聯絡你們的組織管理員。</div>
+        <div id="folderMissing" class="hidden">
+          <div class="section-head"><h2>還沒連結共用資料夾</h2></div>
+          <p class="small muted" style="margin:0 0 10px">組織的表單要放在共用資料夾裡，平台才能控管。請先到「組織設定」連結資料夾。</p>
+          <button type="button" class="btn primary" id="btnGoOrgSettings">前往組織設定</button>
+          <div id="folderMemberNote" class="note warn hidden">只有組織管理員可以連結資料夾，請聯絡你們的組織管理員。</div>
         </div>
         <div id="folderLinked" class="hidden">
           <div class="section-head">
             <h2>共用資料夾裡的表單</h2>
-            <div class="right"><button class="btn sm" id="btnFolderRefresh">重新整理</button><button class="btn sm ghost" id="btnFolderChange">變更資料夾</button></div>
+            <div class="right"><button class="btn sm" id="btnFolderRefresh">重新整理</button></div>
           </div>
           <div class="small muted" id="folderInfo" style="margin-bottom:8px"></div>
           <div id="folderForms"></div>
@@ -257,7 +249,29 @@
     <!-- 組織設定（組織管理員） -->
     <div id="pOrgSettings" class="panel hidden">
       <div class="section-head"><h2 id="osTitle">組織設定</h2></div>
-      <div class="section-head"><h2 style="font-size:15px">寄信帳號</h2><span class="small muted">候補／遞補通知用這個帳號寄出</span></div>
+      <div class="hint" style="margin:-6px 0 16px">每個組織各自設定：共用資料夾、寄信帳號，以及每份表單的名額和選項。</div>
+
+      <div class="section-head"><h2 style="font-size:15px">1. 共用資料夾</h2><span class="small muted">表單、回覆都留在你們的雲端硬碟</span></div>
+      <div class="card">
+        <div id="folderLinkedInfo" class="hidden">
+          <div class="row"><div class="grow small" id="folderInfoOS"></div><button type="button" class="btn sm" id="btnFolderChange">變更資料夾</button></div>
+        </div>
+        <div id="folderSetup" class="hidden">
+          
+          <ol class="steps">
+            <li>在你的 Google 雲端硬碟建立一個資料夾，名稱必須是 <code class="fname">…</code>。</li>
+            <li>對資料夾按右鍵 →「共用」，把 <code class="pemail">…</code> 加為<b>編輯者</b>。</li>
+            <li>打開資料夾，複製網址列的連結，貼在下面。</li>
+          </ol>
+          <form id="folderForm" class="row">
+            <input type="text" class="grow" id="folderUrl" placeholder="https://drive.google.com/drive/folders/…" required>
+            <button class="btn primary" id="folderBtn">連結資料夾</button>
+          </form>
+          <div class="hint">表單、回覆和上傳的檔案都會留在你們自己的雲端硬碟，平台只負責開關表單。</div>
+        </div>
+      </div>
+
+      <div class="section-head" style="margin-top:22px"><h2 style="font-size:15px">2. 寄信帳號</h2><span class="small muted">候補／遞補通知用這個帳號寄出</span></div>
       <div class="card">
         <div class="gcard" style="margin-bottom:12px"><span class="gdot" id="omDot"></span><div style="flex:1;min-width:200px"><b id="omStatus"></b><div class="small muted" id="omSub"></div></div></div>
         <form id="omForm">
@@ -295,6 +309,9 @@
         </form>
         <form id="omTestForm" class="row" style="margin-top:14px"><input type="email" class="grow" id="omTo" placeholder="收件 Email" required><button class="btn" id="omTestBtn">寄測試信</button></form>
       </div>
+
+      <div class="section-head" style="margin-top:22px"><h2 style="font-size:15px">3. 各表單的設定</h2><span class="small muted">名額、開放／截止時間、選項名額、候補通知</span></div>
+      <div class="card" id="osForms"></div>
     </div>
 
     <!-- 組織（平台） -->
@@ -565,18 +582,20 @@
   }
   $('orgSelect').addEventListener('change', function () {
     S.orgId = Number(this.value); try { localStorage.setItem('gfl_org', S.orgId); } catch (e) {}
-    S.forms = []; go(['forms', 'users', 'logs', 'orgsettings'].indexOf(S.tab) >= 0 ? S.tab : 'forms');
+    S.forms = []; renderTabs(); go(['forms', 'users', 'logs', 'orgsettings'].indexOf(S.tab) >= 0 ? S.tab : 'forms');
   });
   function tabsFor() {
     var t = [];
-    if (S.orgId) { t.push(['forms', '首頁']); if (isSuper() || S.me.role === 'org_admin') { t.push(['users', '帳號']); t.push(['orgsettings', '組織設定']); } t.push(['logs', '紀錄']); }
+    if (S.orgId) { t.push(['forms', '首頁']); if (canAdmin()) t.push(['users', '帳號']); }
+    if (S.orgId && isOwner()) t.push(['logs', '紀錄']);
     if (isSuper()) t.push(['orgs', '所有組織']);
+    if (isOwner()) t.push(['settings', '平台設定']);
     return t;
   }
   var isOwner = function () { return !!(S.me && S.me.owner); };
-  $('btnPlatform').addEventListener('click', function () { go('settings'); });
+  $('btnOrgSettings').addEventListener('click', function () { go('orgsettings'); });
   function renderTabs() {
-    $('btnPlatform').classList.toggle('hidden', !isOwner());
+    $('btnOrgSettings').classList.toggle('hidden', !(S.orgId && canAdmin()));
     $('tabs').innerHTML = tabsFor().map(function (t) { return '<button class="tab" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
   }
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) go(b.dataset.tab); });
@@ -584,7 +603,7 @@
   function go(tab) {
     S.tab = tab;
     document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
-    $('btnPlatform').classList.toggle('on', tab === 'settings');
+    $('btnOrgSettings').classList.toggle('on', tab === 'orgsettings');
     var map = { forms: 'pForms', users: 'pUsers', logs: 'pLogs', orgs: 'pOrgs', settings: 'pSettings', orgsettings: 'pOrgSettings' };
     document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('hidden', p.id !== map[tab]); });
     if (tab === 'forms') return loadForms();
@@ -644,7 +663,7 @@
         '</div></article>';
     }).join('');
   }
-  function replaceForm(f) { S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; }); renderForms(); }
+  function replaceForm(f) { S.forms = S.forms.map(function (x) { return x.id === f.id ? f : x; }); renderForms(); if (S.tab === 'orgsettings') renderOsForms(); }
   $('formsList').addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]'); if (!b || b.tagName === 'A') return;
     var id = Number(b.closest('.fcard').dataset.id), f = S.forms.filter(function (x) { return x.id === id; })[0], act = b.dataset.act;
@@ -664,17 +683,23 @@
   var changingFolder = false;
   function renderFolder() {
     var o = orgObj(); if (!o) return;
-    var linked = !!o.folder && !changingFolder;
-    $('folderSetup').classList.toggle('hidden', linked);
+    var linked = !!o.folder;
+    // 首頁：有連結就列出資料夾裡的表單，沒有就提示到組織設定
     $('folderLinked').classList.toggle('hidden', !linked);
-    $('folderForm').classList.toggle('hidden', !canAdmin());
+    $('folderMissing').classList.toggle('hidden', linked);
+    $('btnGoOrgSettings').classList.toggle('hidden', !canAdmin());
     $('folderMemberNote').classList.toggle('hidden', canAdmin());
-    $('btnFolderChange').classList.toggle('hidden', !canAdmin());
+    // 組織設定：顯示目前資料夾，或連結表單
+    var showSetup = !linked || changingFolder;
+    $('folderSetup').classList.toggle('hidden', !showSetup);
+    $('folderLinkedInfo').classList.toggle('hidden', showSetup);
     if (linked) {
-      $('folderInfo').innerHTML = '資料夾 <a href="' + esc(o.folder.url) + '" target="_blank" rel="noopener">' + esc(o.folder.name) + ' ↗</a>' + (o.folder.owner ? '・擁有者 ' + esc(o.folder.owner) : '');
-      loadFolderForms();
+      var info = '資料夾 <a href="' + esc(o.folder.url) + '" target="_blank" rel="noopener">' + esc(o.folder.name) + ' ↗</a>' + (o.folder.owner ? '・擁有者 ' + esc(o.folder.owner) : '');
+      $('folderInfo').innerHTML = info; $('folderInfoOS').innerHTML = '✅ 已連結 ' + info;
+      if (S.tab === 'forms') loadFolderForms();
     }
   }
+  $('btnGoOrgSettings').addEventListener('click', function () { go('orgsettings'); });
   function loadFolderForms() {
     $('folderForms').innerHTML = '<div class="muted small"><span class="spin"></span> 讀取資料夾…</div>';
     return GET('/api/orgs/' + S.orgId + '/folder-forms').then(function (l) {
@@ -702,7 +727,7 @@
     run($('folderBtn'), '確認中', function () {
       return api('PUT', '/api/orgs/' + S.orgId + '/folder', { url: $('folderUrl').value }).then(function (o) {
         S.orgs = S.orgs.map(function (x) { return x.id === o.id ? o : x; });
-        changingFolder = false; $('folderUrl').value = ''; renderFolder(); toast('已連結資料夾「' + o.folder.name + '」');
+        changingFolder = false; $('folderUrl').value = ''; renderFolder(); toast('已連結資料夾「' + o.folder.name + '」，回首頁就能把表單加入管理');
       });
     });
   });
@@ -986,8 +1011,28 @@
     });
   });
   /* ---------- 組織設定：寄信 ---------- */
+  function renderOsForms() {
+    $('osForms').innerHTML = S.forms.length ? S.forms.map(function (f) {
+      var st = statusOf(f);
+      var bits = [f.maxResponses ? '名額 ' + (f.count == null ? '–' : f.count) + '/' + f.maxResponses : '不限名額'];
+      if (f.optionQuotas && f.optionQuotas.length) bits.push('選項名額 ' + f.optionQuotas.length + ' 題');
+      if (f.closeAt) bits.push(fmt(f.closeAt) + ' 截止');
+      if (f.notify.enabled) bits.push('候補通知');
+      return '<div class="ff" data-id="' + f.id + '"><span class="name"><b>' + esc(f.title) + '</b> <span class="small muted">' + esc(bits.join('・')) + '</span></span>' +
+        '<span class="pill ' + st.c + '">' + esc(st.t) + '</span><button class="btn sm primary" data-act="edit">設定</button><button class="btn sm" data-act="sim">🧪 測試</button></div>';
+    }).join('') : '<div class="muted small">還沒有表單。先連結共用資料夾，再到首頁把資料夾裡的表單加入管理。</div>';
+  }
+  $('osForms').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var id = Number(b.closest('.ff').dataset.id), f = S.forms.filter(function (x) { return x.id === id; })[0];
+    if (b.dataset.act === 'edit') return openFormDlg(f);
+    if (b.dataset.act === 'sim') return openSim(f);
+  });
   function loadOrgSettings() {
     $('osTitle').textContent = orgName() + '・組織設定';
+    changingFolder = false; renderFolder();
+    $('osForms').innerHTML = '<div class="muted small"><span class="spin"></span> 載入中…</div>';
+    GET('/api/forms?org=' + S.orgId).then(function (l) { S.forms = l; renderOsForms(); }).catch(function (e) { $('osForms').innerHTML = '<div class="note bad">' + esc(e.message) + '</div>'; });
     return GET('/api/orgs/' + S.orgId + '/mail').then(function (r) {
       var c = r.settings || {}, eff = r.effective || {};
       $('omDot').classList.toggle('on', !!eff.enabled);
