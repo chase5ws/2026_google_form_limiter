@@ -2,11 +2,11 @@
 const http = require('node:http');
 const { open } = require('./lib/db');
 const { cipher } = require('./lib/security');
-const { createGoogle } = require('./lib/google');
+const { createGoogleHub } = require('./lib/google');
 const { createLimiter } = require('./lib/limiter');
 const { createMailer } = require('./lib/mailer');
 const { createApp } = require('./lib/app');
-const { resolveDataDir, resolveKey, createSettings } = require('./lib/runtime');
+const { resolveDataDir, resolveKey, createSettings, migratePlatformGoogle } = require('./lib/runtime');
 
 const env = process.env;
 const APP_URL = String(env.APP_URL || (env.RAILWAY_PUBLIC_DOMAIN ? `https://${env.RAILWAY_PUBLIC_DOMAIN}` : `http://localhost:${env.PORT || 3000}`)).replace(/\/$/, '');
@@ -23,22 +23,20 @@ if (key.created) console.log(`已自動產生加密金鑰：${key.file}`);
 
 const db = open(data.dir);
 const box = cipher(key.key);
-const settings = createSettings({ env, db, cipher: box });
-const google = createGoogle({
-  getClient: () => settings.googleClient(),
-  redirectUri: `${APP_URL}/oauth/google/callback`,
-  db,
-  cipher: box
-});
-// 寄信：每個組織用自己設定的 GAS 或 SMTP；沒設定就不寄
+const settings = createSettings({ db, cipher: box });
+const moved = migratePlatformGoogle(db);
+if (moved) console.log(`舊版平台共用的 Google 設定已搬到組織「${moved}」。`);
+// 每個組織用自己的 Google OAuth 用戶端和帳號；平台只提供這個網站
+const googleFor = createGoogleHub({ settings, redirectUri: `${APP_URL}/oauth/google/callback`, db, cipher: box });
+// 寄信：每個組織用自己的 GAS；沒設定就不寄
 const noMailer = createMailer({});
 function mailerFor(orgId) {
   const orgEnv = orgId ? settings.orgMailEnv(orgId) : {};
   return orgEnv.MAIL_FROM ? createMailer(orgEnv) : noMailer;
 }
-const limiter = createLimiter({ db, google, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
+const limiter = createLimiter({ db, googleFor, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
 const handle = createApp({
-  db, google, limiter, mailerFor, settings,
+  db, googleFor, limiter, mailerFor, settings,
   runtime: {
     appUrl: APP_URL,
     redirectUri: `${APP_URL}/oauth/google/callback`,
@@ -54,8 +52,7 @@ const handle = createApp({
     defaultAdminUser: env.ADMIN_ACCOUNT || env.ADMIN__ACCOUNT || env.DEFAULT_ADMIN_USER,
     defaultAdminPassword: env.DEFAULT_ADMIN_PASSWORD,
     adminPassword: env.ADMIN_PASSWORD,
-    resetAdminPassword: env.RESET_ADMIN_PASSWORD,
-    folderName: env.DRIVE_FOLDER_NAME
+    resetAdminPassword: env.RESET_ADMIN_PASSWORD
   }
 });
 

@@ -20,12 +20,14 @@ function fakeMailer() {
 
 function boot() {
   const db = open(':memory:');
-  const google = createFakeGoogle();
+  // 每個組織有自己的 Google 帳號
+  const gs = new Map();
+  const gFor = (id) => { id = Number(id); if (!gs.has(id)) gs.set(id, createFakeGoogle({ email: `org${id}@example.com` })); return gs.get(id); };
   const mailer = fakeMailer();
-  const limiter = createLimiter({ db, google, mailer, log: { error() {} } });
-  const handle = createApp({ db, google, limiter, mailer, config: { appUrl: 'http://localhost' } });
+  const limiter = createLimiter({ db, googleFor: gFor, mailer, log: { error() {} } });
+  const handle = createApp({ db, googleFor: gFor, limiter, mailer, config: { appUrl: 'http://localhost' } });
   const server = http.createServer(handle);
-  return new Promise(r => server.listen(0, () => r({ db, google, mailer, limiter, server, base: `http://127.0.0.1:${server.address().port}` })));
+  return new Promise(r => server.listen(0, () => r({ db, gFor, mailer, limiter, server, base: `http://127.0.0.1:${server.address().port}` })));
 }
 
 function client(base) {
@@ -53,7 +55,8 @@ async function login(base, u, p) {
 
 test('完整流程', async (t) => {
   const env = await boot();
-  const { base, google, db, mailer } = env;
+  const { base, db, mailer } = env;
+  let google; // 新竹社大自己的 Google 帳號
   t.after(() => env.server.close());
 
   let su;
@@ -73,22 +76,9 @@ test('完整流程', async (t) => {
     assert.strictEqual((await su.post('/api/orgs', { name: 'x' }, { noCsrf: true })).status, 403);
   });
 
-  await t.test('連接 Google：state 驗證', async () => {
-    await su.post('/api/google/connect');
-    const bad = await su.get('/oauth/google/callback?code=good&state=nope');
-    assert.match(decodeURIComponent(bad.headers.get('location')), /來源不正確/);
-    const r = await su.post('/api/google/connect');
-    const cb = await su.get('/oauth/google/callback?code=good&state=' + new URL(r.data.url).searchParams.get('state'));
-    assert.strictEqual(cb.headers.get('location'), '/#settings?google=ok');
-    const me = (await su.get('/api/me')).data;
-    assert.strictEqual(me.google.email, 'chase5ws@gmail.com');
-    assert.strictEqual(me.google.folderName, '表單限額平台');
-    assert.strictEqual(me.me.owner, true, 'chase5ws 是平台擁有者');
-  });
-
-  await t.test('平台管理員可以改共用資料夾名稱', async () => {
-    assert.strictEqual((await su.put('/api/settings', { folderName: 'FormLimiter' })).data.folderName, 'FormLimiter');
-    await su.put('/api/settings', { folderName: '表單限額平台' });
+  await t.test('平台擁有者', async () => {
+    assert.strictEqual((await su.get('/api/me')).data.me.owner, true, 'chase5ws 是平台擁有者');
+    assert.strictEqual((await su.post('/api/google/connect')).status, 404, '平台不再有共用的 Google 帳號');
   });
 
   let orgA, orgB;
@@ -108,23 +98,39 @@ test('完整流程', async (t) => {
     assert.strictEqual((await a.get('/api/users?org=platform')).status, 403);
   });
 
-  await t.test('連結共用資料夾：沒共用、名稱不對、只有檢視權限都會擋', async () => {
+  await t.test('組織連接自己的 Google 帳號：state 驗證、只能連自己的組織', async () => {
+    assert.strictEqual((await a.get(`/api/orgs/${orgA}/google`)).data.connected, false);
+    assert.strictEqual((await a.post(`/api/orgs/${orgB}/google/connect`)).status, 403);
+    const bad = await a.get('/oauth/google/callback?code=good&state=nope');
+    assert.match(decodeURIComponent(bad.headers.get('location')), /來源不正確/);
+    const r = await a.post(`/api/orgs/${orgA}/google/connect`);
+    const cb = await a.get('/oauth/google/callback?code=good&state=' + new URL(r.data.url).searchParams.get('state'));
+    assert.strictEqual(cb.headers.get('location'), `/#org/${orgA}/orgsettings?google=ok`);
+    const g = (await a.get(`/api/orgs/${orgA}/google`)).data;
+    assert.strictEqual(g.connected, true);
+    assert.strictEqual(g.email, `org${orgA}@example.com`, '用的是組織自己的帳號');
+    assert.strictEqual(g.redirectUri, 'http://localhost/oauth/google/callback');
+    assert.strictEqual(env.gFor(orgB).connected(), false, '別的組織不受影響');
+    google = env.gFor(orgA);
+  });
+
+  await t.test('設定資料夾：帳號打不開、只有檢視權限都會擋；名稱不限', async () => {
     google._folder('FOLDER_NOT_SHARED_1', '表單限額平台', { shared: false });
     let r = await a.put(`/api/orgs/${orgA}/folder`, { url: 'https://drive.google.com/drive/folders/FOLDER_NOT_SHARED_1' });
-    assert.match(r.data.error, /chase5ws@gmail\.com.*編輯者/);
-    google._folder('FOLDER_WRONG_NAME_1', '我的資料夾');
-    r = await a.put(`/api/orgs/${orgA}/folder`, { url: 'https://drive.google.com/drive/folders/FOLDER_WRONG_NAME_1' });
-    assert.match(r.data.error, /要叫「表單限額平台」/);
+    assert.match(r.data.error, /org\d+@example\.com 打不開這個資料夾/);
     google._folder('FOLDER_VIEW_ONLY_1', '表單限額平台', { role: 'reader' });
     r = await a.put(`/api/orgs/${orgA}/folder`, { url: 'https://drive.google.com/drive/u/0/folders/FOLDER_VIEW_ONLY_1?usp=sharing' });
     assert.match(r.data.error, /檢視權限/);
-    google._folder('FOLDER_HSINCHU_01', '表單限額平台', { owner: 'boss@hc.test' });
+    google._folder('FOLDER_HSINCHU_01', '社大報名表', { owner: 'boss@hc.test' });
     r = await a.put(`/api/orgs/${orgA}/folder`, { url: 'https://drive.google.com/drive/folders/FOLDER_HSINCHU_01' });
     assert.strictEqual(r.status, 200, JSON.stringify(r.data));
     assert.strictEqual(r.data.folder.owner, 'boss@hc.test');
     const b = (await login(base, 'yuntech', 'Admin2026b')).c;
     await b.post('/api/password', { oldPassword: 'Admin2026b', newPassword: 'YunOwn2026' });
-    assert.match((await b.put(`/api/orgs/${orgB}/folder`, { url: 'FOLDER_HSINCHU_01' })).data.error, /已經連結到/);
+    assert.match((await b.put(`/api/orgs/${orgB}/folder`, { url: 'FOLDER_HSINCHU_01' })).data.error, /還沒連接 Google/);
+    env.gFor(orgB)._connect();
+    env.gFor(orgB)._folder('FOLDER_HSINCHU_01', '社大報名表');
+    assert.match((await b.put(`/api/orgs/${orgB}/folder`, { url: 'FOLDER_HSINCHU_01' })).data.error, /已經被「新竹社大」使用/);
   });
 
   const F1 = '1FormInFolderAAAAAAAAAAAAAAAAAAAAAAAAAAA';
@@ -136,14 +142,14 @@ test('完整流程', async (t) => {
     google._form('1OutsideFormCCCCCCCCCCCCCCCCCCCCCCCCCCCC', '外面的表單', 'OTHER_FOLDER_00001');
     const list = (await a.get(`/api/orgs/${orgA}/folder-forms`)).data;
     assert.deepStrictEqual(list.map(f => f.name).sort(), ['十二月講座報名', '舊表單']);
-    assert.match((await a.post('/api/forms', { org: orgA, formId: '1OutsideFormCCCCCCCCCCCCCCCCCCCCCCCCCCCC' })).data.error, /不在共用資料夾/);
+    assert.match((await a.post('/api/forms', { org: orgA, formId: '1OutsideFormCCCCCCCCCCCCCCCCCCCCCCCCCCCC' })).data.error, /不在資料夾/);
     assert.match((await a.post('/api/forms', { org: orgA, formId: '1LegacyFormBBBBBBBBBBBBBBBBBBBBBBBBBBBBB' })).data.error, /舊版.*建立副本/);
     const r = await a.post('/api/forms', { org: orgA, formId: F1 });
     assert.strictEqual(r.status, 200, JSON.stringify(r.data));
     form = r.data.form;
     assert.strictEqual(form.googleFormId, F1, '直接控管原始表單');
     assert.strictEqual(form.state, 'open');
-    assert.strictEqual(google.files.size, 8, '沒有多出任何複製檔（5 個資料夾 + 3 份表單）');
+    assert.strictEqual(google.files.size, 7, '沒有多出任何複製檔（4 個資料夾 + 3 份表單）');
     assert.match((await a.post('/api/forms', { org: orgA, formId: F1 })).data.error, /已經在管理/);
     assert.ok((await a.get(`/api/orgs/${orgA}/folder-forms`)).data.find(f => f.id === F1).managed);
   });
@@ -271,7 +277,7 @@ test('完整流程', async (t) => {
     assert.strictEqual((await a2.get('/api/logs?org=' + orgA)).status, 403, '組織管理員看不到');
     assert.strictEqual((await a2.get('/api/logs?org=platform')).status, 403);
     const logs = (await su.get('/api/logs?org=' + orgA)).data;
-    assert.ok(logs.some(l => l.what.includes('連結共用資料夾')));
+    assert.ok(logs.some(l => l.what.includes('設定資料夾')));
     assert.ok(logs.some(l => l.what.includes('寄出')));
   });
 });

@@ -3,11 +3,11 @@
 const { httpError } = require('../../lib/security');
 const { FOLDER_MIME, FORM_MIME } = require('../../lib/google');
 
-function createFakeGoogle() {
+function createFakeGoogle({ email } = {}) {
   const files = new Map();
   let connected = false;
   let seq = 0;
-  const platform = 'chase5ws@gmail.com';
+  const platform = email || 'chase5ws@gmail.com'; // 連接的 Google 帳號
   const calls = [];
   const guard = () => { if (!connected) throw httpError(503, '平台還沒連接 Google 帳號'); };
   const visible = (id) => {
