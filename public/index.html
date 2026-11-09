@@ -193,7 +193,14 @@
   .bars div { flex: 1; background: var(--brand-weak); border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
   .bars div.has { background: var(--brand); }
   .barlbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
-  .live-tbl td { font-size: 13px; vertical-align: top; max-width: 260px; word-break: break-word; }
+  .live-tbl td { font-size: 13px; vertical-align: top; }
+  /* 欄寬：Email 一行顯示完整，題目欄窄一點、標題和答案會換行 */
+  .live-tbl td.em { white-space: nowrap; }
+  .live-tbl td.st { white-space: nowrap; }
+  .live-tbl td.st .small { white-space: normal; min-width: 7em; max-width: 12em; }
+  .live-tbl th.q, .live-tbl td.a { white-space: normal; }
+  .live-tbl th.q > div { min-width: 4em; max-width: 9em; line-height: 1.35; }
+  .live-tbl td.a > div { max-width: 14em; overflow-wrap: anywhere; }
   .live-tbl tr.new td { background: #fffbe6; }
   .sheet-frame { width: 100%; height: 520px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
   .dirty-dot { color: var(--warn); font-size: 12px; font-weight: 600; }
@@ -312,7 +319,7 @@
 
       <div class="card gap">
         <div class="section-head"><h3>段落：選項、名額與寄信通知</h3></div>
-        <div class="hint" style="margin:-6px 0 10px">從下拉選單選一個段落（預設最後一段），可以直接修改題目名稱、選項名稱、新增或刪除選項，按住左邊的 <b>⠿</b> 拖拽調整順序，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。選單最後一項是「名額已滿時寄信通知」。</div>
+        <div class="hint" style="margin:-6px 0 10px">從下拉選單選一個段落（預設最後一段），可以直接修改題目名稱、選項名稱、新增或刪除選項，按住左邊的 <b>⠿</b> 拖拽調整順序，並替每個選項設名額（留白代表不限）。額滿的選項會從表單移除，有名額空出來時自動加回；全部額滿就關閉表單。改名後，之前的回覆仍會算在這個選項上。選單第一項是「名額已滿時寄信通知」。</div>
         <div id="feQLoading" class="small muted"><span class="spin"></span> 讀取表單題目中…</div>
         <div id="feQBox" class="hidden">
           <label class="field"><span>段落</span><select id="feSection"></select></label>
@@ -1027,7 +1034,7 @@
   }); });
   $('feTplDefault').addEventListener('click', function () { TPL.forEach(function (k) { $(TPL_EL[k]).value = S.templates[k] || ''; }); setDirty('notify', true); });
 
-  /* 段落下拉選單：第 1 段、第 2 段…，最後一項是「名額已滿時寄信通知」 */
+  /* 段落下拉選單：第一項是「名額已滿時寄信通知」，接著第 1 段、第 2 段… */
   function loadQuotaEditor(f) {
     var keep = S.qStruct && S.qStruct.formId === f.id ? $('feSection').value : '';
     var keepDrafts = {}; // 重新讀取時保留還沒存的題目
@@ -1041,10 +1048,10 @@
       st.formId = f.id; S.qStruct = st;
       st.sections.forEach(function (sec) { sec.questions.forEach(function (q) { S.qDraft[q.questionId] = keepDrafts[q.questionId] || draftOf(q); }); });
       var withQ = st.sections.filter(function (sec) { return sec.questions.length; });
-      $('feSection').innerHTML = st.sections.map(function (sec) {
+      $('feSection').innerHTML = '<option value="notify">名額已滿時寄信通知' + ((curForm() || f).notify.enabled ? '（已開啟）' : '') + '</option>' + st.sections.map(function (sec) {
         var used = sec.questions.some(function (q) { return q.options.some(function (o) { return o.limit != null; }); });
         return '<option value="' + sec.index + '"' + (sec.questions.length ? '' : ' disabled') + '>第 ' + sec.index + ' 段：' + esc(sec.title) + '（' + sec.questions.length + ' 題選擇題' + (used ? '・已設名額' : '') + '）</option>';
-      }).join('') + '<option value="notify">名額已滿時寄信通知' + ((curForm() || f).notify.enabled ? '（已開啟）' : '') + '</option>';
+      }).join('');
       $('feQNone').classList.toggle('hidden', !!withQ.length);
       // 預設最後一段；剛儲存過就留在原本的選項
       var ok = keep === 'notify' || withQ.some(function (sec) { return String(sec.index) === keep; });
@@ -1206,13 +1213,13 @@
       var lbl = function (ms) { var x = new Date(ms); return x.getHours() + ':00'; };
       $('lvBarLbl').innerHTML = '<span>' + lbl(start) + '</span><span>' + lbl(start + 12 * 3600e3) + '</span><span>現在</span>';
       // 最新的回覆（新出現的那幾筆會標底色）
-      $('lvHead').innerHTML = '<tr><th>順位</th><th>時間</th><th>狀態</th><th>Email</th>' + d.questions.map(function (q) { return '<th>' + esc(q.title) + '</th>'; }).join('') + '</tr>';
+      $('lvHead').innerHTML = '<tr><th>順位</th><th>時間</th><th>狀態</th><th>Email</th>' + d.questions.map(function (q) { return '<th class="q" title="' + esc(q.title) + '"><div>' + esc(q.title) + '</div></th>'; }).join('') + '</tr>';
       var seen = liveSeen;
       $('lvRows').innerHTML = d.items.length ? d.items.map(function (x) {
         var isNew = seen && x.rank > seen;
         return '<tr' + (isNew ? ' class="new"' : '') + '><td>' + x.rank + '</td><td class="small" style="white-space:nowrap">' + fmt(x.at) + '</td>' +
-          '<td>' + (x.waitlist ? '<span class="tag off">候補</span><div class="small muted">' + esc(x.waitlist) + '</div>' : '<span class="tag ok">正取</span>') + '</td>' +
-          '<td class="small">' + esc(x.email || '—') + '</td>' + x.answers.map(function (a) { return '<td>' + esc(a) + '</td>'; }).join('') + '</tr>';
+          '<td class="st">' + (x.waitlist ? '<span class="tag off">候補</span><div class="small muted">' + esc(x.waitlist) + '</div>' : '<span class="tag ok">正取</span>') + '</td>' +
+          '<td class="small em">' + esc(x.email || '—') + '</td>' + x.answers.map(function (a) { return '<td class="a"><div>' + esc(a) + '</div></td>'; }).join('') + '</tr>';
       }).join('') : '<tr><td colspan="4" class="muted">還沒有人填寫。</td></tr>';
       liveSeen = d.total;
     }).catch(function (e) { $('lvErr').textContent = '讀取失敗：' + e.message; $('lvErr').classList.remove('hidden'); });

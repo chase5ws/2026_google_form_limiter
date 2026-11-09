@@ -149,7 +149,7 @@ fs.mkdirSync(OUT, { recursive: true });
   await page.waitForSelector('#saveBar.dirty');
   await page.waitForSelector('#feQBox:not(.hidden)');
   const sectionOptions = await page.$$eval('#feSection option', os => os.map(o => o.textContent));
-  if (!sectionOptions[sectionOptions.length - 1].startsWith('名額已滿時寄信通知')) throw new Error('段落選單最後一項應該是寄信通知：' + sectionOptions.join());
+  if (!sectionOptions[0].startsWith('名額已滿時寄信通知')) throw new Error('段落選單第一項應該是寄信通知：' + sectionOptions.join());
   if (await page.isVisible('#feNotifyForm')) throw new Error('寄信通知不該跟題目同時顯示');
   const blk = '.qblock[data-q="slot"]';
   await page.fill(`${blk} .optrow[data-i="0"] input[data-f=limit]`, '5');
