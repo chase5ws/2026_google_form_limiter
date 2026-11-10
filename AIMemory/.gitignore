@@ -1,0 +1,5 @@
+.awm.lock
+*.tmp-*
+# keep memory logs even if the project ignores *.log
+!*.log
+!archive/*.log

@@ -1,0 +1,13 @@
+# AIMemory work.log — append-only, newest at the bottom.
+# Header: ### YYYY-MM-DD HH:MM | <model-id> | <EVENT>
+# Events: PROMPT WORK_START WORK_END NOTE CORRECTION FILES_CREATED FILES_MODIFIED
+#         FILES_MOVED FILES_DELETED HANDOFF HANDOFF_RECEIVED HANDOFF_CLOSED
+#         PROJECT_BOOTSTRAPPED RE_ENGAGED
+# Rules: AIMemory/PROTOCOL.md. Never edit existing events; append a CORRECTION.
+
+### 2026-11-10 09:14 | claude-opus-5-5 | PROJECT_BOOTSTRAPPED
+Installed AIMemory via claude-easy-mcp. HOT_RETENTION_EVENTS: 20.
+Each agent declares itself in RE_ENGAGED (Tier / Vendor / Harness / Capabilities).
+
+### 2026-11-10 09:14 | claude-opus-5-5 | NOTE
+Installed AIMemory via 2026_claude_easy_mcp (awm MCP server). PROJECT_OVERVIEW points at existing docs instead of duplicating them.
