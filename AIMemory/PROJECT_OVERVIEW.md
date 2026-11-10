@@ -21,7 +21,7 @@ Multi-organization Google Form quota platform: each org connects its own Google 
 ## Where to look
 - README.md — architecture, file map and Railway deployment
 - lib/ — one module per concern (see README)
-- Recent activity → AIMemory/work.log; older history → awm_search
+- Recent activity → AIMemory/work.log; older history → memory_search
 
 ---
 Last rebuild: 2026-11-10 09:14 by claude-opus-5-5

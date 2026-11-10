@@ -11,3 +11,6 @@ Each agent declares itself in RE_ENGAGED (Tier / Vendor / Harness / Capabilities
 
 ### 2026-11-10 09:14 | claude-opus-5-5 | NOTE
 Installed AIMemory via 2026_claude_easy_mcp (awm MCP server). PROJECT_OVERVIEW points at existing docs instead of duplicating them.
+
+### 2026-11-10 09:23 | claude-opus-5-5 | NOTE
+Upgraded AIMemory to claude-easy-mcp 1.0.0: MCP server is now `easy`, tools are memory_* / handoff_* / lesson_add / skill_*.
