@@ -6,6 +6,7 @@ const { createGoogleHub } = require('./lib/google');
 const { createLimiter } = require('./lib/limiter');
 const { createMailer } = require('./lib/mailer');
 const { createApp } = require('./lib/app');
+const { createDemo } = require('./lib/demo');
 const { resolveDataDir, resolveKey, createSettings, migratePlatformGoogle } = require('./lib/runtime');
 
 const env = process.env;
@@ -43,16 +44,23 @@ const settings = createSettings({ db, cipher: box });
 const moved = migratePlatformGoogle(db);
 if (moved) console.log(`舊版平台共用的 Google 設定已搬到組織「${moved}」。`);
 // 每個組織用自己的 Google OAuth 用戶端和帳號；平台只提供這個網站
-const googleFor = createGoogleHub({ settings, redirectUri: `${APP_URL}/oauth/google/callback`, db, cipher: box });
+const realGoogleFor = createGoogleHub({ settings, redirectUri: `${APP_URL}/oauth/google/callback`, db, cipher: box });
+// 訪客 Demo（預設開啟，設 DEMO=off 關閉）：沙盒組織用模擬的 Google 和寄信
+const DEMO_ON = !/^(off|0|false|no)$/i.test(String(env.DEMO || 'on'));
+let limiter = null;
+const demo = DEMO_ON ? createDemo({ db, getLimiter: () => limiter }) : null;
+const googleFor = (orgId) => (demo && demo.isDemo(orgId) ? demo.google(orgId) : realGoogleFor(orgId));
+googleFor.forget = (orgId) => { if (demo && demo.isDemo(orgId)) return demo.forget(orgId); return realGoogleFor.forget(orgId); };
 // 寄信：每個組織用自己的 GAS；沒設定就不寄
 const noMailer = createMailer({});
 function mailerFor(orgId) {
+  if (demo && demo.isDemo(orgId)) return demo.mailer(orgId);
   const orgEnv = orgId ? settings.orgMailEnv(orgId) : {};
   return orgEnv.MAIL_FROM ? createMailer(orgEnv) : noMailer;
 }
-const limiter = createLimiter({ db, googleFor, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
+limiter = createLimiter({ db, googleFor, mailerFor, intervalMs: Number(env.CHECK_INTERVAL_SECONDS || 60) * 1000 });
 const handle = createApp({
-  db, googleFor, limiter, mailerFor, settings,
+  db, googleFor, limiter, mailerFor, settings, demo,
   runtime: {
     appUrl: APP_URL,
     redirectUri: `${APP_URL}/oauth/google/callback`,
@@ -85,6 +93,7 @@ const server = http.createServer((req, res) => {
 server.listen(Number(env.PORT || 3000), () => {
   console.log(`表單限額管理平台已啟動：${APP_URL}（資料：${data.dir}）`);
   limiter.start();
+  if (demo) setInterval(() => { try { demo.tick(); } catch (e) { console.error('demo tick', e); } }, 60_000).unref();
 });
 
 /* 優雅關閉：Railway 部署新版時先送 SIGTERM，等 drainingSeconds 後才 SIGKILL */

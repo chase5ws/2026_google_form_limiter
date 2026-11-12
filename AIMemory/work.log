@@ -14,3 +14,15 @@ Installed AIMemory via 2026_claude_easy_mcp (awm MCP server). PROJECT_OVERVIEW p
 
 ### 2026-11-10 09:23 | claude-opus-5-5 | NOTE
 Upgraded AIMemory to claude-easy-mcp 1.0.0: MCP server is now `easy`, tools are memory_* / handoff_* / lesson_add / skill_*.
+
+### 2026-11-12 17:40 | claude-opus-5-5 | PROMPT
+> google form limter幫我弄一個訪客登入 可以看demo這種
+
+### 2026-11-12 17:40 | claude-opus-5-5 | FILES_CREATED
+lib/demo.js, test/platform/demo.test.js
+
+### 2026-11-12 17:40 | claude-opus-5-5 | FILES_MODIFIED
+lib/app.js (POST/GET /api/demo, noGuest guards, demo org hidden from super list, logout purges sandbox), server.js (wraps googleFor/mailerFor for demo orgs, DEMO env, tick every 60s), public/index.html (login button, demo banner), README.md
+
+### 2026-11-12 17:40 | claude-opus-5-5 | WORK_END
+Status: complete — guest demo: per-visitor sandbox org (orgs.demo_expires), in-memory fake Google + fake mailer, 3 seeded managed forms + 1 unmanaged, 2h TTL, purged on logout/restart. DEMO=off disables. 41/41 tests pass; verified in browser.
